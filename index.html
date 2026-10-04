@@ -1124,18 +1124,13 @@ input[type="checkbox"] {
 }
 
 
-/* Stasiun Bandung: teks sedikit lebih kecil & diberi ruang agar tidak tertutup bar pemilik */
-.space.station-bandung { font-size: 0.4rem; padding-top: 8px; justify-content: center; }
-.board.tri-active .space.station-bandung { font-size: 0.33rem; padding-top: 7px; }
-.space.station-bandung .name { line-height: 1.05; }
-
-/* Semua stasiun (kecuali Bandung): teks sedikit diperkecil */
-.space.rail:not(.station-bandung) { font-size: 0.42rem; }
-.space.rail:not(.station-bandung) .price { font-size: 0.36rem; }
-.board.tri-active .space.rail:not(.station-bandung) { font-size: 0.34rem; }
-.board.tri-active .space.rail:not(.station-bandung) .price { font-size: 0.3rem; }
-.board-wrap.big-map .space.rail:not(.station-bandung) { font-size: 0.47rem; }
-.board-wrap.big-map .space.rail:not(.station-bandung) .price { font-size: 0.4rem; }
+/* Semua stasiun: teks sedikit diperkecil */
+.space.rail { font-size: 0.42rem; }
+.space.rail .price { font-size: 0.36rem; }
+.board.tri-active .space.rail { font-size: 0.34rem; }
+.board.tri-active .space.rail .price { font-size: 0.3rem; }
+.board-wrap.big-map .space.rail { font-size: 0.47rem; }
+.board-wrap.big-map .space.rail .price { font-size: 0.4rem; }
 
 .bot-toggle{display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:700;color:#38bdf8;cursor:pointer;white-space:nowrap}
 .bot-toggle input[type="checkbox"]{width:18px;height:18px;flex:none;accent-color:#38bdf8}
@@ -1149,8 +1144,8 @@ body.bot-lock #statusText::before{content:"🤖 ";}
 .board-wrap.big-map.orbit-map .board { margin: 0 auto; }
 .board-wrap.big-map.orbit-map .board.orbit .space { font-size: calc(0.46rem * var(--zf)); padding: calc(2px * var(--zf)); }
 .board-wrap.big-map.orbit-map .board.orbit .space .price { font-size: calc(0.4rem * var(--zf)); }
-.board-wrap.big-map.orbit-map .board.orbit .space.rail:not(.station-bandung) { font-size: calc(0.47rem * var(--zf)); }
-.board-wrap.big-map.orbit-map .board.orbit .space.rail:not(.station-bandung) .price { font-size: calc(0.4rem * var(--zf)); }
+.board-wrap.big-map.orbit-map .board.orbit .space.rail { font-size: calc(0.47rem * var(--zf)); }
+.board-wrap.big-map.orbit-map .board.orbit .space.rail .price { font-size: calc(0.4rem * var(--zf)); }
 .board-wrap.big-map.orbit-map .token { width: calc(14px * var(--zf)); height: calc(14px * var(--zf)); border-width: calc(1.5px * var(--zf)); }
 .board-wrap.big-map.orbit-map .token-emoji { width: calc(14px * var(--zf)); height: calc(14px * var(--zf)); font-size: calc(0.65rem * var(--zf)); border-width: calc(1.5px * var(--zf)); }
 .board-wrap.big-map.orbit-map .space .house-dot { width: calc(6px * var(--zf)); height: calc(6px * var(--zf)); }
@@ -2641,7 +2636,7 @@ function buildBoard() {
       html += `<div class="owner-bar" id="owner-${i}" style="display:none"></div>`;
       html += `<div class="mortgage-badge" id="mortgage-${i}" style="display:none">G</div>`;
     }
-    if ((sp.name || '').includes('Bandung')) el.classList.add('station-bandung');
+    
     if (sp.type === 'parking') el.classList.add('parking-free');
     if (sp.type === 'gotojail') el.classList.add('gotojail-small');
     if (sp.type === 'tax') el.classList.add('income-tax');
@@ -2717,7 +2712,7 @@ function buildInnerBoard() {
     if (sp.type === 'property') {
       html += `<div class="houses-indicator" id="houses-in-${i}"></div>`;
     }
-    if ((sp.name || '').includes('Bandung')) el.classList.add('station-bandung');
+    
     if (sp.type === 'parking') el.classList.add('parking-free');
     if (sp.type === 'gotojail') el.classList.add('gotojail-small');
     if (sp.type === 'tax') el.classList.add('income-tax');
