@@ -2230,7 +2230,7 @@ const STRATEGY_CARDS = [
   { id: 'parking_self', name: 'Ke Parkir Sendiri', short: '🅿️ Ke Parkir', rarity: 'langka', desc: 'Pindahkan diri ke Parkir Gratis.' },
   { id: 'start_self', name: 'Ke MULAI Sendiri', short: '▶️ Ke MULAI', rarity: 'langka', desc: 'Pindahkan diri ke MULAI (+hadiah MULAI).' },
   { id: 'wipe_3houses', name: 'Hancur 3 Rumah', short: '💥 −3 Rumah', rarity: 'epik', desc: 'Hancurkan 3 rumah di monopoli lawan.' },
-  { id: 'force_mortgage', name: 'Paksa Gadai', short: '🏦 Paksa Gadai', rarity: 'epik', desc: 'Paksa 1 properti lawan acak digadai (jika bisa). Hanya bisa mengenai properti tanpa bangunan. Lawan mendapat uang gadai.' },
+  { id: 'force_mortgage', name: 'Paksa Gadai', short: '🏦 Paksa Gadai', rarity: 'epik', desc: 'Paksa 1 properti tanpa bangunan lawan acak digadai (jika bisa).' },
   { id: 'steal_all_stocks', name: 'Rampas Saham Terkaya', short: '📈 Ambil Saham Terkaya', rarity: 'langka', desc: 'Ambil 1 lembar saham acak dari pemain terkaya.' },
   // ===== 50 KARTU STRATEGI TAMBAHAN (batch 2) =====
   { id: 'steal_20', name: 'Rampas Tipis', short: '🥷 −Rp20', rarity: 'biasa', desc: 'Ambil Rp20 dari pemain terkaya.' },
@@ -3173,9 +3173,9 @@ function getForcedBuyPrice(spaceId) {
   // Tanah khusus lelang (Monako): dasar = harga saat dilelang, bukan harga asli
   const base = (sp.auctionOnly && auctionPaid[spaceId] !== undefined) ? auctionPaid[spaceId] : (sp.price || 0);
   const upgrade = getUpgradeValue(spaceId);
-  // Tanah tanpa bangunan: harga × 2. Tanah dengan bangunan: 2,5 × harga tanah + harga seluruh upgrade bangunan
+  // Tanah tanpa bangunan: harga × 2. Tanah dengan bangunan: (harga tanah + harga seluruh upgrade bangunan) × 2
   if (upgrade > 0) {
-    const formula = Math.floor(base * 2.5 + upgrade);
+    const formula = Math.floor((base + upgrade) * 2);
     // Batas bawah: tidak boleh lebih murah dari sewa tanah saat ini (efek Olimpiade/Diskon ikut dihitung)
     let rentNow = 0;
     const own = owned[spaceId];
@@ -4755,7 +4755,7 @@ function getForcedBuyPriceInner(spaceId) {
   const base = sp.price || 0;
   const upgrade = getUpgradeValueInner(spaceId);
   if (upgrade > 0) {
-    const formula = Math.floor(base * 2.5 + upgrade);
+    const formula = Math.floor((base + upgrade) * 2);
     // Batas bawah: tidak boleh lebih murah dari sewa tanah saat ini
     return Math.max(formula, getInnerRent(sp, spaceId) || 0);
   }
