@@ -970,12 +970,7 @@ button.btn-ripple.rippling::after {
 .board-wrap.big-map .space .price { font-size: 0.44rem; }
 .board-wrap.big-map .space.corner { font-size: 0.6rem; }
 .board-wrap.big-map .token { width: 14px; height: 14px; }
-.board-wrap.big-map .board-popup-overlay {
-  position: sticky; top: 0; left: 0; z-index: 400; border-radius: 14px;
-  width: 100%; height: min(72vh, 560px);
-  margin-bottom: calc(-1 * min(72vh, 560px));
-  flex: none;
-}
+/* popup aksi sekarang berada di panel bawah (lihat .board-popup-overlay) */
 .board-wrap.big-map .center-logo { width: 46%; height: 46%; }
 
 
@@ -1003,42 +998,39 @@ button.btn-ripple.rippling::after {
 .board.orbit .space.orbit-go { background: linear-gradient(145deg, #fde68a, #f59e0b); }
 .board.orbit .space:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
 
-/* Board popup */
+/* Popup aksi: tampil di panel bawah (side-panel), tidak menutupi papan */
 .board-popup-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.25);
+  position: static;
   display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  border-radius: 14px;
-  pointer-events: none;
+  background: none;
+  border-radius: 0;
+  pointer-events: auto;
+  z-index: auto;
 }
-.board-popup-overlay.show { display: flex; }
+.board-popup-overlay.show { display: block; }
 .board-popup {
-  background: var(--card-solid);
+  background: linear-gradient(145deg, rgba(49,46,129,0.55), rgba(15,23,42,0.92));
   border-radius: 14px;
-  padding: 12px;
-  width: 56%;
-  max-width: 180px;
-  border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: 0 16px 32px rgba(0,0,0,0.55);
+  padding: 12px 14px;
+  width: 100%;
+  max-width: none;
+  border: 1px solid rgba(129,140,248,0.45);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.4);
   animation: modalIn 0.25s ease;
   text-align: center;
   pointer-events: auto;
 }
 .board-popup h3 {
-  margin-bottom: 5px; color: var(--accent);
-  font-size: 0.72rem; line-height: 1.2;
+  margin-bottom: 6px; color: var(--accent);
+  font-size: 0.95rem; line-height: 1.25;
   font-family: var(--font-display);
 }
 .board-popup p {
-  margin-bottom: 8px; line-height: 1.3;
-  color: var(--muted); font-size: 0.58rem;
+  margin-bottom: 10px; line-height: 1.4;
+  color: var(--muted); font-size: 0.8rem;
 }
-.board-popup .btns { display: flex; flex-direction: column; gap: 5px; }
-.board-popup .btns button { width: 100%; padding: 6px 7px; font-size: 0.58rem; }
+.board-popup .btns { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.board-popup .btns button { flex: 1 1 130px; width: auto; margin-top: 0; padding: 10px 10px; font-size: 0.82rem; }
 
 
 /* Wheel */
@@ -1141,7 +1133,7 @@ input[type="checkbox"] {
 .bot-toggle{display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:700;color:#38bdf8;cursor:pointer;white-space:nowrap}
 .bot-toggle input[type="checkbox"]{width:18px;height:18px;flex:none;accent-color:#38bdf8}
 .player-row .bot-toggle input{flex:none;min-width:0}
-body.bot-lock .action-area,body.bot-lock .board-popup-overlay,body.bot-lock .extra-btns button:not(#zoomBtn),body.bot-lock #viewStratBtn,
+body.bot-lock .action-area,body.bot-lock .board-popup-overlay,body.bot-lock .extra-btns button:not(#zoomBtn),body.bot-lock #mainMenuBtn,body.bot-lock #viewStratBtn,
 body.bot-lock #cardModal,body.bot-lock #wheelModal,body.bot-lock #debtModal,body.bot-lock #bankruptModal,body.bot-lock #rouletteModal,
 body.bot-lock #stratDrawModal,body.bot-lock #auctionModal,body.bot-lock #tradeAcceptModal{pointer-events:none}
 body.bot-lock #statusText::before{content:"🤖 ";}
@@ -1157,6 +1149,17 @@ body.bot-lock #statusText::before{content:"🤖 ";}
 .board-wrap.big-map.orbit-map .space .house-dot { width: calc(6px * var(--zf)); height: calc(6px * var(--zf)); }
 .board-wrap.big-map.orbit-map .space .hotel-dot { width: calc(10px * var(--zf)); height: calc(7px * var(--zf)); }
 .board-wrap.big-map.orbit-map .space .houses-indicator { top: calc(6px * var(--zf)); }
+/* Tombol fokus kamera ke pemain yang sedang giliran (lokal per perangkat) */
+#focusBar { display: flex; }
+#focusBtn { width: 100%; margin: 0; padding: 10px 12px; font-size: 0.86rem; color: #fff;
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%); box-shadow: 0 6px 16px rgba(56,189,248,0.22); }
+.space.focus-pulse { animation: focusPulse 0.75s ease-in-out 3; z-index: 40; }
+.space.focus-pulse .token-emoji { animation: focusToken 0.75s ease-in-out 3; position: relative; z-index: 41; }
+@keyframes focusPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(250,204,21,0.95), inset 0 0 0 3px rgba(250,204,21,0.95); }
+  100% { box-shadow: 0 0 0 14px rgba(250,204,21,0), inset 0 0 0 3px rgba(250,204,21,0.35); }
+}
+@keyframes focusToken { 0%,100% { transform: scale(1); } 50% { transform: scale(2.1); } }
 #zoomBar { display: none; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 8px; background: rgba(255,255,255,0.06); border-radius: 10px; }
 #zoomBar button { flex: none; min-width: 34px; }
 #zoomBar #zoomPct { min-width: 56px; font-variant-numeric: tabular-nums; }
@@ -1185,12 +1188,12 @@ body.bot-lock #statusText::before{content:"🤖 ";}
 @keyframes olp{50%{box-shadow:0 0 0 6px rgba(52,211,153,.25)}}
 .ol-tag{display:inline-block;font-size:.72rem;font-weight:800;color:#7dd3fc;margin-bottom:4px}
 body.ol-guest #setup{display:none !important}
-body.ol-guest #viewStratBtn,body.ol-guest .extra-btns button{position:relative}
-body.ol-lock .action-area,body.ol-lock .board-popup-overlay,body.ol-lock .extra-btns button,body.ol-lock #viewStratBtn,
+body.ol-guest #viewStratBtn,body.ol-guest .extra-btns button,body.ol-guest #mainMenuBtn{position:relative}
+body.ol-lock .action-area,body.ol-lock .board-popup-overlay,body.ol-lock .extra-btns button,body.ol-lock #mainMenuBtn,body.ol-lock #viewStratBtn,
 body.ol-lock #cardModal,body.ol-lock #wheelModal,body.ol-lock #debtModal,body.ol-lock #bankruptModal,body.ol-lock #rouletteModal,
 body.ol-lock #stratDrawModal,body.ol-lock #auctionModal,body.ol-lock #tradeAcceptModal,body.ol-lock #stratModal,body.ol-lock #stratHandModal,
 body.ol-lock #propsModal,body.ol-lock #stocksModal,body.ol-lock #tradeModal{opacity:.92}
-body.ol-host.ol-lock .action-area,body.ol-host.ol-lock .board-popup-overlay,body.ol-host.ol-lock .extra-btns button,body.ol-host.ol-lock #viewStratBtn,
+body.ol-host.ol-lock .action-area,body.ol-host.ol-lock .board-popup-overlay,body.ol-host.ol-lock .extra-btns button,body.ol-host.ol-lock #mainMenuBtn,body.ol-host.ol-lock #viewStratBtn,
 body.ol-host.ol-lock #cardModal,body.ol-host.ol-lock #wheelModal,body.ol-host.ol-lock #debtModal,body.ol-host.ol-lock #bankruptModal,body.ol-host.ol-lock #rouletteModal,
 body.ol-host.ol-lock #stratDrawModal,body.ol-host.ol-lock #auctionModal,body.ol-host.ol-lock #tradeAcceptModal,body.ol-host.ol-lock #stratModal,body.ol-host.ol-lock #stratHandModal,
 body.ol-host.ol-lock #propsModal,body.ol-host.ol-lock #stocksModal,body.ol-host.ol-lock #tradeModal{pointer-events:none}
@@ -1316,14 +1319,6 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
   </div>
   <div class="main-area">
     <div class="board-wrap">
-      <!-- Popup aksi: tetap di tengah area papan yang terlihat (tidak ikut ter-scroll) -->
-      <div class="board-popup-overlay" id="boardPropPopup">
-        <div class="board-popup">
-          <h3 id="boardPropTitle">Properti</h3>
-          <p id="boardPropDesc"></p>
-          <div class="btns" id="boardPropBtns"></div>
-        </div>
-      </div>
       <div class="board" id="board">
         <div class="inner-board-wrap" id="innerBoardWrap">
           <div class="center-logo">
@@ -1348,6 +1343,15 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
     <div class="side-panel">
       <h3>Status Giliran</h3>
       <div class="status-text" id="statusText">Siapkan diri!</div>
+      <div id="focusBar"><button class="btn-sm" id="focusBtn" type="button">🎯 Fokus ke Pemain Giliran</button></div>
+      <!-- Popup aksi (pilih dadu, beli/lelang, pindah stasiun, dll): di panel bawah agar tidak menutupi papan -->
+      <div class="board-popup-overlay" id="boardPropPopup">
+        <div class="board-popup">
+          <h3 id="boardPropTitle">Properti</h3>
+          <p id="boardPropDesc"></p>
+          <div class="btns" id="boardPropBtns"></div>
+        </div>
+      </div>
       <div class="action-area">
         <div class="action-btns" id="actionBtns"></div>
       </div>
@@ -1355,7 +1359,6 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
         <button class="btn-secondary btn-sm" id="viewPropsBtn">🏠 Properti</button>
         <button class="btn-purple btn-sm" id="viewStocksBtn">📈 Saham</button>
         <button class="btn-gold btn-sm" id="tradeBtn">🤝 Dagang</button>
-        <button class="btn-secondary btn-sm" id="mainMenuBtn" type="button">☰ Menu Utama</button>
       </div>
       <div id="zoomBar">
         <span>🔍</span>
@@ -1367,6 +1370,7 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
       <button class="btn-primary" id="viewStratBtn" style="width:100%;padding:14px 16px;margin-top:6px;background:linear-gradient(135deg,#6366f1,#4f46e5);font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 22px rgba(99,102,241,0.3)">
         🃏 Kartu Strategi <span id="stratEnergyBadge" style="background:rgba(0,0,0,0.28);padding:3px 10px;border-radius:999px;font-size:0.82rem;font-weight:700">⚡ 10</span>
       </button>
+      <button class="btn-secondary" id="mainMenuBtn" type="button" style="width:100%;padding:12px 16px;margin-top:6px;font-size:0.9rem">☰ Menu Utama</button>
       <h3>Log</h3>
       <div class="log" id="gameLog"></div>
     </div>
@@ -1689,6 +1693,48 @@ function followTokenBig() {
     behavior: 'smooth'
   });
 }
+// Tombol Fokus: kamera/layar diarahkan ke pemain yang sedang giliran (lokal per perangkat, juga untuk tamu online)
+function focusCurrentPlayer() {
+  let sp = null;
+  try {
+    const isGuest = document.body.classList.contains('ol-guest');
+    if (!isGuest && typeof players !== 'undefined' && players.length) {
+      const p = players[realTurnIdx()];
+      if (p) sp = document.getElementById(((typeof isMulti === 'function' && isMulti() && p.level === 'inner') ? 'space-in-' : 'space-') + p.pos);
+    }
+  } catch (e) {}
+  if (!sp) sp = document.querySelector('.board-wrap .space[data-turn]');
+  const wrap = document.querySelector('.board-wrap');
+  if (!sp || !wrap) return;
+  // 1) pastikan papan terlihat di layar (langsung, tanpa animasi)
+  try { wrap.scrollIntoView({ block: 'nearest', behavior: 'auto' }); } catch (e) {}
+  // 2) papan raksasa/orbit: lompatkan kamera tepat ke tengah petak pemain (instan, dihitung dari posisi layar asli)
+  const centerOn = () => {
+    const w = wrap.getBoundingClientRect(), r = sp.getBoundingClientRect();
+    const dx = (r.left + r.width / 2) - (w.left + w.width / 2);
+    const dy = (r.top + r.height / 2) - (w.top + w.height / 2);
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    const prev = wrap.style.scrollBehavior;
+    wrap.style.scrollBehavior = 'auto';
+    wrap.scrollLeft += dx;
+    wrap.scrollTop += dy;
+    wrap.style.scrollBehavior = prev;
+  };
+  if (wrap.scrollWidth > wrap.clientWidth + 2 || wrap.scrollHeight > wrap.clientHeight + 2) {
+    centerOn();
+    // ulangi sebentar: koreksi bila ada geseran otomatis lain / layout belum selesai
+    setTimeout(centerOn, 60);
+    setTimeout(centerOn, 350);
+  }
+  // 3) sorot petak & token pemain
+  document.querySelectorAll('.space.focus-pulse').forEach(e => e.classList.remove('focus-pulse'));
+  void sp.offsetWidth;
+  sp.classList.add('focus-pulse');
+  setTimeout(() => sp.classList.remove('focus-pulse'), 2400);
+}
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.closest && e.target.closest('#focusBtn')) focusCurrentPlayer();
+});
 (function () {
   // Zoom papan orbit: 35% - 500% (100% = 1100px). Slider skala logaritmik, +/- , Ctrl+scroll, dan cubit (pinch).
   const BASE = 1100, MIN = 35, MAX = 500;
@@ -2964,6 +3010,7 @@ function renderActiveBoard() {
 
 function updateTokens() {
   if (typeof followTokenBig === 'function') requestAnimationFrame(followTokenBig);
+  document.querySelectorAll('.space[data-turn]').forEach(e => e.removeAttribute('data-turn'));
   for (let i = 0; i < BOARD_LEN; i++) {
     const t = document.getElementById(`tokens-${i}`);
     if (t) t.innerHTML = '';
@@ -2989,6 +3036,13 @@ function updateTokens() {
       t.appendChild(tok);
     }
   });
+  try {
+    const cp = players[realTurnIdx()];
+    if (cp && !cp.bankrupt) {
+      const csp = document.getElementById(((isMulti() && cp.level === 'inner') ? 'space-in-' : 'space-') + cp.pos);
+      if (csp) csp.setAttribute('data-turn', '1');
+    }
+  } catch (e) {}
 }
 
 function updateFreeParkingDisplay() {
@@ -3989,6 +4043,14 @@ function showBoardPropPopup(title, desc, buttons) {
   });
   document.getElementById('boardPropPopup').classList.add('show');
   waitingAction = true;
+  try {
+    if (!document.body.classList.contains('bot-lock')) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById('boardPropPopup');
+        if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
+  } catch (e) {}
 }
 
 function hideBoardPropPopup() {
@@ -8086,7 +8148,7 @@ window.sellHouse = sellHouse;
     return false;
   }
 
-  // ---------- popup di tengah papan ----------
+  // ---------- popup aksi (panel bawah) ----------
   function botPopup(p) {
     const title = $('boardPropTitle').textContent || '';
     const btns = [...$('boardPropBtns').querySelectorAll('button')];
@@ -8788,7 +8850,7 @@ window.sellHouse = sellHouse;
   document.addEventListener('click', (e) => {
     if (OL.role !== 'guest' || !OL.guest || OL.guest.status !== 'open') return;
     const t = e.target; if (!t || !t.closest) return;
-    if (t.closest('[data-ol]') || t.closest('#zoomBar')) return;
+    if (t.closest('[data-ol]') || t.closest('#zoomBar, #focusBar')) return;
     if (isTextLike(t)) return;
     const tgt = t.closest('button, input, label, [onclick]') || t;
     e.stopPropagation(); e.preventDefault();
@@ -8799,7 +8861,7 @@ window.sellHouse = sellHouse;
   }, true);
   function formEvt(e) {
     if (OL.role !== 'guest' || !OL.guest || OL.guest.status !== 'open') return;
-    const t = e.target; if (!t || !t.closest || t.closest('[data-ol]') || t.closest('#zoomBar')) return;
+    const t = e.target; if (!t || !t.closest || t.closest('[data-ol]') || t.closest('#zoomBar, #focusBar')) return;
     if (!isTextLike(t) && !(t.tagName === 'INPUT')) return;
     if (!OL.gmeta || !OL.gmeta.st || OL.gmeta.actor !== OL.seat) return;
     const p = pathOf(t); if (!p) return;
