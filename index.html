@@ -2221,7 +2221,7 @@ const STRATEGY_CARDS = [
   { id: 'unmort_discount', name: 'Tebus Murah', short: '🔓 Tebus −20%', rarity: 'biasa', desc: 'Tebus 1 tanah digadai diskon 20%.' },
   { id: 'money_200', name: 'Bonus Sedang', short: '💵 +Rp200', rarity: 'langka', desc: 'Terima Rp200 dari bank.' },
   { id: 'energy_3', name: 'Energi Besar', short: '⚡ +3', rarity: 'langka', desc: 'Dapat +3 energi strategi.' },
-  { id: 'steal_50', name: 'Rampas Kecil', short: '🥷 −Rp50', rarity: 'langka', desc: 'Ambil Rp50 dari pemain terkaya.' },
+  { id: 'steal_50', name: 'Rampas Kecil', short: '🥷 −Rp100', rarity: 'langka', desc: 'Ambil Rp100 dari pemain terkaya.' },
   { id: 'free_house', name: 'Rumah Gratis', short: '🏠 Rumah Gratis', rarity: 'langka', desc: 'Bangun 1 rumah gratis di monopoli.' },
   { id: 'jail_self_out', name: 'Bebas Penjara', short: '🔓 Keluar Penjara', rarity: 'langka', desc: 'Keluar penjara gratis / simpan.' },
   { id: 'teleport_rail', name: 'Stasiun Kilat', short: '🚂 Ke Stasiun', rarity: 'epik', desc: 'Pindah ke stasiun milikmu.' },
@@ -2238,7 +2238,7 @@ const STRATEGY_CARDS = [
   { id: 'steal_property', name: 'Rampas Tanah', short: '🏰 Ambil Tanah', rarity: 'legendaris', desc: 'Pilih & ambil 1 properti lawan apa pun (tidak ada rumah/hotel).' },
   { id: 'jail_all', name: 'Penjara Massal', short: '🔒 Semua', rarity: 'legendaris', desc: 'Semua pemain lain masuk Penjara.' },
   // ===== 50 KARTU STRATEGI BARU =====
-  { id: 'money_30', name: 'Uang Tipis', short: '💵 +Rp30', rarity: 'biasa', desc: 'Terima Rp30 dari bank.' },
+  { id: 'money_30', name: 'Uang Tipis', short: '💵 +Rp50', rarity: 'biasa', desc: 'Terima Rp50 dari bank.' },
   { id: 'energy_1', name: 'Isi Energi Kecil', short: '⚡ +1', rarity: 'biasa', desc: 'Dapat +1 energi strategi.' },
   { id: 'random_back', name: 'Mundur Acak', short: '🎲 Mundur 1–3', rarity: 'biasa', desc: 'Mundur 1–3 petak acak.' },
   { id: 'go_bonus_25', name: 'Bonus MULAI Kecil', short: '▶️ +25 MULAI', rarity: 'biasa', desc: 'Melewati MULAI berikutnya +Rp25 ekstra.' },
@@ -2256,9 +2256,9 @@ const STRATEGY_CARDS = [
   { id: 'force_mortgage', name: 'Paksa Gadai', short: '🏦 Paksa Gadai', rarity: 'epik', desc: 'Paksa 1 properti tanpa bangunan lawan acak digadai (jika bisa).' },
   { id: 'steal_all_stocks', name: 'Rampas Saham Terkaya', short: '📈 Ambil Saham Terkaya', rarity: 'langka', desc: 'Ambil 1 lembar saham acak dari pemain terkaya.' },
   // ===== 50 KARTU STRATEGI TAMBAHAN (batch 2) =====
-  { id: 'steal_20', name: 'Rampas Tipis', short: '🥷 −Rp20', rarity: 'biasa', desc: 'Ambil Rp20 dari pemain terkaya.' },
-  { id: 'steal_from_poorest', name: 'Rampas Termiskin', short: '🥷 −Rp30 Miskin', rarity: 'biasa', desc: 'Ambil Rp30 dari pemain termiskin.' },
-  { id: 'steal_random_25', name: 'Rampas Acak', short: '🥷 −Rp25 Acak', rarity: 'biasa', desc: 'Ambil Rp25 dari 1 pemain acak.' },
+  { id: 'steal_20', name: 'Rampas Tipis', short: '🥷 −Rp40', rarity: 'biasa', desc: 'Ambil Rp40 dari pemain terkaya.' },
+  { id: 'steal_from_poorest', name: 'Rampas Termiskin', short: '🥷 −Rp40 Miskin', rarity: 'biasa', desc: 'Ambil Rp40 dari pemain termiskin.' },
+  { id: 'steal_random_25', name: 'Rampas Acak', short: '🥷 −Rp40 Acak', rarity: 'biasa', desc: 'Ambil Rp40 dari 1 pemain acak.' },
   { id: 'random_forward_2', name: 'Lompat 1–2', short: '🎲 +1–2', rarity: 'biasa', desc: 'Maju 1–2 petak acak.' },
   { id: 'steal_half_richest', name: 'Rampas Separuh Terkaya', short: '🥷 ½ Terkaya', rarity: 'langka', desc: 'Ambil 10% uang pemain terkaya (maks Rp200).' },
   { id: 'teleport_rail_any', name: 'Ke Stasiun Acak', short: '🚂 Stasiun Acak', rarity: 'epik', desc: 'Pindah ke stasiun acak mana pun.' },
@@ -5899,7 +5899,7 @@ function applyStratCardCore(cardId, opts) {
     let t=0;players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;const g=Math.min(10,op.money);op.money-=g;t+=g;moneyAnim(i,-g);});p.money+=t;moneyAnim(currentPlayer,t);updatePlayersPanel();return;
   }
   if (cardId==='steal_50'||cardId==='steal_100'||cardId==='steal_200'){
-    const amt=cardId==='steal_200'?200:(cardId==='steal_100'?100:50);const rich=richest();
+    const amt=cardId==='steal_200'?200:(cardId==='steal_100'?100:100);const rich=richest();
     if(!rich){showToast('Tidak ada target');return;}
     const take=Math.min(amt,rich.op.money);rich.op.money-=take;p.money+=take;moneyAnim(rich.i,-take);moneyAnim(currentPlayer,take);updatePlayersPanel();return;
   }
@@ -5997,7 +5997,7 @@ function applyStratCardCore(cardId, opts) {
   }
 
   // ===== HANDLER 50 KARTU BARU =====
-  if (cardId==='money_30'){p.money+=30;moneyAnim(currentPlayer,30);log(`${p.name}:+Rp30`,'money');updatePlayersPanel();return;}
+  if (cardId==='money_30'){p.money+=50;moneyAnim(currentPlayer,50);log(`${p.name}:+Rp50`,'money');updatePlayersPanel();return;}
   if (cardId==='money_60'){p.money+=60;moneyAnim(currentPlayer,60);log(`${p.name}:+Rp60`,'money');updatePlayersPanel();return;}
   if (cardId==='money_80'){p.money+=80;moneyAnim(currentPlayer,80);log(`${p.name}:+Rp80`,'money');updatePlayersPanel();return;}
   if (cardId==='energy_1'){addEnergy(p,1);updateStratUI();updatePlayersPanel();return;}
@@ -6168,7 +6168,7 @@ function applyStratCardCore(cardId, opts) {
     if (!o.length) return null; return o[Math.floor(Math.random()*o.length)];
   };
   if (cardId==='steal_20'||cardId==='steal_40'||cardId==='steal_120'||cardId==='steal_180'||cardId==='steal_250'||cardId==='steal_350'||cardId==='steal_500'){
-    const amtMap={steal_20:20,steal_40:40,steal_120:120,steal_180:180,steal_250:250,steal_350:350,steal_500:500};
+    const amtMap={steal_20:40,steal_40:40,steal_120:120,steal_180:180,steal_250:250,steal_350:350,steal_500:500};
     const amt=amtMap[cardId]; const rich=richest();
     if(!rich){showToast('Tidak ada target');return;}
     const take=Math.min(amt,rich.op.money); rich.op.money-=take; p.money+=take;
@@ -6177,12 +6177,12 @@ function applyStratCardCore(cardId, opts) {
   }
   if (cardId==='steal_from_poorest'){
     const poor=poorest(); if(!poor){showToast('Tidak ada target');return;}
-    const take=Math.min(30,poor.op.money); poor.op.money-=take; p.money+=take;
+    const take=Math.min(40,poor.op.money); poor.op.money-=take; p.money+=take;
     moneyAnim(poor.i,-take); moneyAnim(currentPlayer,take); updatePlayersPanel(); return;
   }
   if (cardId==='steal_random_25'){
     const t=randomOther(); if(!t){showToast('Tidak ada target');return;}
-    const take=Math.min(25,t.op.money); t.op.money-=take; p.money+=take;
+    const take=Math.min(40,t.op.money); t.op.money-=take; p.money+=take;
     moneyAnim(t.i,-take); moneyAnim(currentPlayer,take); updatePlayersPanel(); return;
   }
   if (cardId==='money_35'){p.money+=35;moneyAnim(currentPlayer,35);updatePlayersPanel();return;}
