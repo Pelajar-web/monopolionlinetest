@@ -998,7 +998,7 @@ button.btn-ripple.rippling::after {
 .board.orbit .space.orbit-go { background: linear-gradient(145deg, #fde68a, #f59e0b); }
 .board.orbit .space:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
 
-/* Popup aksi: tampil di panel bawah (side-panel), tidak menutupi papan */
+/* Popup aksi: default di panel bawah (dipakai papan orbit); peta lain dipindah ke tengah papan (lihat .center-popup-layer) */
 .board-popup-overlay {
   position: static;
   display: none;
@@ -1031,6 +1031,37 @@ button.btn-ripple.rippling::after {
 }
 .board-popup .btns { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
 .board-popup .btns button { flex: 1 1 130px; width: auto; margin-top: 0; padding: 10px 10px; font-size: 0.82rem; }
+
+/* ===== Popup aksi di TENGAH papan (selain papan orbit) — ukuran mengikuti luas ruang kosong di tengah =====
+   Klasik/Cepat/Acak: ruang tengah luas -> popup besar. Dua Tingkat: sedang. Tiga Tingkat: sempit -> popup kecil.
+   Semua ukuran font/tombol memakai satuan cqw (relatif terhadap lebar ruang tengah), jadi otomatis membesar/mengecil. */
+.center-popup-layer {
+  position: absolute; z-index: 30; display: none;
+  align-items: center; justify-content: center;
+  container-type: size; pointer-events: none;
+}
+.center-popup-layer.cp-classic { display: flex; left: 11.55%; top: 11.55%; width: 76.9%; height: 76.9%; }
+.center-popup-layer.cp-dual    { display: flex; left: 22.6%;  top: 22.6%;  width: 54.8%; height: 54.8%; }
+.center-popup-layer.cp-tri     { display: flex; left: 28%;    top: 28%;    width: 44%;   height: 44%; }
+.center-popup-layer .board-popup-overlay { display: none; width: 100%; height: 100%; pointer-events: auto; }
+.center-popup-layer .board-popup-overlay.show { display: block; }
+/* Bentuk persegi: mengisi penuh ruang tengah (lebar = tinggi), isi di tengah, tombol besar bertumpuk */
+.center-popup-layer .board-popup {
+  width: 100%; height: 100%; aspect-ratio: 1 / 1; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: center;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 4.5cqw; border-radius: 4cqw;
+  background: linear-gradient(145deg, rgba(49,46,129,0.97), rgba(15,23,42,0.98));
+  box-shadow: 0 6px 22px rgba(0,0,0,0.55);
+  scrollbar-width: thin;
+}
+.center-popup-layer .board-popup h3 { font-size: clamp(9px, 5.4cqw, 20px); margin-bottom: 2cqw; }
+.center-popup-layer .board-popup p { font-size: clamp(8px, 4cqw, 15px); margin-bottom: 3cqw; line-height: 1.35; }
+.center-popup-layer .board-popup .btns { flex-direction: column; flex-wrap: nowrap; gap: 2.2cqw; }
+.center-popup-layer .board-popup .btns button {
+  flex: 0 0 auto; width: 100%; min-width: 0; padding: 3.2cqw 2cqw; border-radius: 2.6cqw;
+  font-size: clamp(8px, 4.4cqw, 16px); line-height: 1.2;
+}
 
 
 /* Wheel */
@@ -1333,6 +1364,8 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
             <div id="freeParkingPot" style="margin-top:4px;font-size:0.6rem;color:var(--gold);font-weight:700;min-height:14px;"></div>
           </div>
         </div>
+        <!-- Lapisan popup aksi di tengah papan (diisi lewat placeBoardPopup) -->
+        <div class="center-popup-layer" id="centerPopupLayer"></div>
       </div>
       <div class="tier-caption" id="tierCaption">
         <span class="tag-outer" id="tagOuter">🌍 Tingkat Luar</span>
@@ -1344,7 +1377,7 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
       <h3>Status Giliran</h3>
       <div class="status-text" id="statusText">Siapkan diri!</div>
       <div id="focusBar"><button class="btn-sm" id="focusBtn" type="button">🎯 Fokus ke Pemain Giliran</button></div>
-      <!-- Popup aksi (pilih dadu, beli/lelang, pindah stasiun, dll): di panel bawah agar tidak menutupi papan -->
+      <!-- Popup aksi (pilih dadu, beli/lelang, pindah stasiun, dll): dipindah ke tengah papan lewat placeBoardPopup(); di papan orbit tetap di panel ini -->
       <div class="board-popup-overlay" id="boardPropPopup">
         <div class="board-popup">
           <h3 id="boardPropTitle">Properti</h3>
@@ -4020,9 +4053,26 @@ function landOnSpace() {
   else { endTurnOrDouble(); }
 }
 
+// Pindahkan popup aksi: tengah papan (kecuali papan orbit) atau panel bawah (papan orbit 96 petak)
+let _popupHome = null, _popupAnchor = null;
+function placeBoardPopup() {
+  const pop = document.getElementById('boardPropPopup');
+  const layer = document.getElementById('centerPopupLayer');
+  if (!pop || !layer) return;
+  if (!_popupHome) { _popupHome = pop.parentNode; _popupAnchor = pop.nextElementSibling; }
+  const tier = currentMapId === 'big96' ? null : (currentMapId === 'tri' ? 'tri' : (currentMapId === 'dual' ? 'dual' : 'classic'));
+  if (tier) {
+    layer.className = 'center-popup-layer cp-' + tier;
+    if (pop.parentNode !== layer) layer.appendChild(pop);
+  } else {
+    layer.className = 'center-popup-layer';
+    if (pop.parentNode !== _popupHome) _popupHome.insertBefore(pop, _popupAnchor && _popupAnchor.parentNode === _popupHome ? _popupAnchor : null);
+  }
+}
 const POPUP_STAY = Symbol('popupStay'); // onClick return POPUP_STAY → popup tetap tampil (tombol tidak hilang)
 function showBoardPropPopup(title, desc, buttons) {
   // buttons: [{text, class, onClick}]
+  placeBoardPopup();
   document.getElementById('boardPropTitle').textContent = title;
   document.getElementById('boardPropDesc').innerHTML = desc;
   const btnsEl = document.getElementById('boardPropBtns');
