@@ -460,8 +460,8 @@ button.btn-ripple.rippling::after {
 /* ===== Peta Tiga Tingkat: Tingkat Tengah (32) membungkus Tingkat Dalam (24) ===== */
 .core-board-wrap {
   position: absolute;
-  left: 10.2%; top: 10.2%;
-  width: 79.6%; height: 79.6%;
+  left: 11.2%; top: 11.2%;
+  width: 77.6%; height: 77.6%;   /* tidak lagi menimpa ring Tengah (sisi dalam ring = 11.11% .. 88.89%) */
   border-radius: 8px;
   overflow: hidden;
   z-index: 2;
@@ -1338,6 +1338,7 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
     <label>Nama, Warna & Avatar Pemain</label>
     <div class="player-inputs" id="playerInputs"></div>
     <button type="button" class="btn-secondary btn-sm" id="botQuickBtn" style="width:100%;margin-top:8px">🤖 Pemain 1 manusia, sisanya Bot</button>
+    <select id="botLevel" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:#0f172a;color:#e2e8f0;border:1px solid rgba(255,255,255,.12)"><option value="easy">🤖 Kesulitan Bot: Mudah</option><option value="normal" selected>🤖 Kesulitan Bot: Normal</option><option value="hard">🤖 Kesulitan Bot: Sulit</option></select>
   </div>
   <button class="btn-primary" id="startBtn">Mulai Permainan</button>
   <button class="btn-secondary" id="catalogBtn" style="width:100%;margin-top:12px;padding:13px;background:linear-gradient(135deg,rgba(49,46,129,0.9),rgba(30,27,75,0.95));border:1px solid rgba(99,102,241,0.45);color:#e0e7ff;border-radius:12px;font-weight:700">📖 Katalog Kartu Strategi</button>
@@ -8090,9 +8091,22 @@ window.sellHouse = sellHouse;
     const others = mem.filter(s => s.id !== sp.id);
     const o0 = others.length ? map[others[0].id] : undefined;
     const blocks = o0 !== undefined && o0 !== who && others.every(s => map[s.id] === o0);
-    return { completes, blocks };
+    return { completes, blocks, mine, total: mem.length };
   }
   function propValue(sp) { return (sp && sp.price) || 0; }
+  // ---------- tingkat kesulitan & penilaian risiko ----------
+  const LV = () => ({ easy: { res: .6, tr: .9, bid: .75, smart: 0 }, normal: { res: 1, tr: 1.1, bid: 1, smart: 1 }, hard: { res: 1, tr: 1.2, bid: 1.15, smart: 2 } })[(($('botLevel') || {}).value) || 'normal'];
+  function oppHouses(who) {
+    let n = 0;
+    for (const id in owned) if (owned[id] !== who) n += houses[id] || 0;
+    for (const id in ownedInner) if (ownedInner[id] !== who) n += housesInner[id] || 0;
+    return n;
+  }
+  const risk = (who) => Math.min(400, oppHouses(who) * 35);   // makin banyak rumah lawan, makin besar cadangan uang
+  function isSet(sp, inner, who) {
+    const list = inner ? INNER_SPACES : SPACES, map = inner ? ownedInner : owned;
+    return !!sp.group && list.filter(s => s.group === sp.group).every(s => map[s.id] === who);
+  }
 
   // ---------- keputusan ----------
   function wantBuy(p, sp, inner) {
@@ -8100,7 +8114,9 @@ window.sellHouse = sellHouse;
     if (p.money < price) return false;
     const g = groupInfo(sp, inner, currentPlayer);
     if (g.completes || g.blocks) return true;
-    const reserve = (sp.type === 'rail' || sp.type === 'util') ? 60 : 120;
+    const L = LV();
+    let reserve = ((sp.type === 'rail' || sp.type === 'util') ? 60 : 120) * L.res + (L.smart ? risk(currentPlayer) : 0);
+    if (L.smart && (g.mine || 0) > 0) reserve *= 0.6;   // sudah punya 1 tanah satu grup -> lebih berani
     return p.money - price >= reserve;
   }
   function auctionValue(idx, a) {
@@ -8112,14 +8128,16 @@ window.sellHouse = sellHouse;
     if (g.blocks) v = price * 1.2;
     if (g.completes) v = price * 1.5;
     if (sp.auctionOnly) v = price * 1.1;
-    return Math.floor(v);
+    const L = LV();
+    if (L.smart && (g.mine || 0) > 0) v *= 1.1;
+    return Math.floor(v * L.bid);
   }
   function botAuction(idx) {
     const a = auction, p = players[idx];
     const minBid = auctionMinBid();
-    const maxBid = Math.min(auctionValue(idx, a), p.money - 20);
+    const L = LV(), maxBid = Math.min(auctionValue(idx, a), p.money - 20 - (L.smart ? Math.floor(risk(idx) / 2) : 0));
     if (minBid <= maxBid) {
-      const extra = 10 * Math.floor(Math.random() * 3);
+      const extra = 10 * Math.floor(Math.random() * (L.smart > 1 ? 4 : 3));
       const bid = Math.min(maxBid, minBid + extra);
       $('auctionBidInput').value = bid;
       $('auctionBidBtn').click();
@@ -8134,11 +8152,37 @@ window.sellHouse = sellHouse;
       return s + propValue(sp) + h * 60;
     }, 0);
   }
+  // Nilai dagang sadar set warna: bonus jika melengkapi set bot, penalti besar jika memberi lawan set lengkap
+  function tradeNet(t) {
+    const me = t.to, opp = t.from, N = (a) => (a || []).map(Number);
+    const rO = N(t.myProps), rI = N(t.myPropsInner), gO = N(t.theirProps), gI = N(t.theirPropsInner);
+    let get = tradeValue(rO, false) + tradeValue(rI, true) + (t.myMoney || 0);
+    let give = tradeValue(gO, false) + tradeValue(gI, true) + (t.theirMoney || 0);
+    if (LV().smart) {
+      const adj = (rc, gv, inner) => {
+        const list = inner ? INNER_SPACES : SPACES, map = inner ? ownedInner : owned;
+        let net = 0;
+        new Set([...rc, ...gv].map(id => list[id] && list[id].group).filter(Boolean)).forEach(gp => {
+          const mem = list.filter(s => s.group === gp), n = mem.length;
+          const avg = mem.reduce((a, s) => a + (s.price || 0), 0) / n;
+          const mB = mem.filter(s => map[s.id] === me).length, oB = mem.filter(s => map[s.id] === opp).length;
+          const mA = mem.filter(s => (map[s.id] === me && !gv.includes(s.id)) || rc.includes(s.id)).length;
+          const oA = mem.filter(s => (map[s.id] === opp && !rc.includes(s.id)) || gv.includes(s.id)).length;
+          if (mA === n && mB < n) net += avg * 1.5;
+          if (oA === n && oB < n) net -= avg * 2.5;
+          if (mB === n && mA < n) net -= avg * 2;
+        });
+        return net;
+      };
+      const net = adj(rO, gO, false) + adj(rI, gI, true);
+      get += Math.max(0, net); give += Math.max(0, -net);
+    }
+    return { get, give };
+  }
   function botTrade() {
-    const t = pendingTrade, p = players[t.to];
-    const get = tradeValue(t.myProps || [], false) + tradeValue(t.myPropsInner || [], true) + (t.myMoney || 0);
-    const give = tradeValue(t.theirProps || [], false) + tradeValue(t.theirPropsInner || [], true) + (t.theirMoney || 0);
-    const ok = p.money >= (t.theirMoney || 0) && get >= give * 1.1 && get > 0;
+    const t = pendingTrade, p = players[t.to], L = LV(), v = tradeNet(t);
+    const keep = L.smart ? 100 : 0;
+    const ok = p.money - (t.theirMoney || 0) >= keep && v.get >= v.give * L.tr && v.get > 0;
     $(ok ? 'tradeAccept' : 'tradeReject').click();
   }
 
@@ -8159,6 +8203,17 @@ window.sellHouse = sellHouse;
         if (ok && (p.energy || 0) >= stratCost(id)) { manage.n++; tryUseStratCard(i); return true; }
       }
     }
+    // 1b) kartu serang bertarget (Normal/Sulit): uang, energi, kartu, skip, penjara
+    if (LV().smart && allowCards && strategiEnabled && !hasRolledThisTurn) {
+      manage.tried = manage.tried || {};
+      for (let i = 0; i < (p.hand || []).length; i++) {
+        const id = p.hand[i];
+        if (!ATTACK.test(id) || manage.tried[id] || (p.energy || 0) < stratCost(id)) continue;
+        const t = targetFor(id, p);
+        if (t < 0) continue;
+        manage.tried[id] = 1; manage.n++; botTarget = t; tryUseStratCard(i); return true;
+      }
+    }
     // 2) tebus gadai
     for (const id of p.props) {
       if (mortgaged[id] && p.money >= Math.floor(SPACES[id].price / 2 * 1.1) + 300) { manage.n++; unmortgageProperty(id); return true; }
@@ -8167,16 +8222,17 @@ window.sellHouse = sellHouse;
       if (mortgagedInner[id] && p.money >= Math.floor(INNER_SPACES[id].price / 2 * 1.1) + 300) { manage.n++; unmortgageInnerProperty(id); return true; }
     }
     // 3) bangun rumah
-    const outer = [...p.props].sort((a, b) => (SPACES[b].price || 0) - (SPACES[a].price || 0));
+    const L = LV(), buf = Math.round(200 * L.res + (L.smart ? risk(currentPlayer) : 0));
+    const outer = [...p.props].sort((a, b) => (L.smart ? (houses[a] || 0) - (houses[b] || 0) : 0) || (SPACES[b].price || 0) - (SPACES[a].price || 0));
     for (const id of outer) {
-      if (canBuildHouse(id) && p.money >= getHouseCost(id) + 200) { manage.n++; buildHouse(id); return true; }
+      if (canBuildHouse(id) && p.money >= getHouseCost(id) + buf) { manage.n++; buildHouse(id); return true; }
     }
     for (const id of (p.propsInner || [])) {
-      if (canBuildInnerHouse(id) && p.money >= getInnerHouseCost(id) + 200) { manage.n++; buildInnerHouse(id); return true; }
+      if (canBuildInnerHouse(id) && p.money >= getInnerHouseCost(id) + buf) { manage.n++; buildInnerHouse(id); return true; }
     }
     // 4) saham (di akhir giliran)
-    if (atEnd && manage.stocks < 2) {
-      const s = STOCKS.slice().sort((a, b) => b.dividend / b.price - a.dividend / a.price).find(x => p.money >= x.price + 500);
+    if (atEnd && manage.stocks < (L.smart > 1 ? 3 : 2)) {
+      const s = STOCKS.slice().sort((a, b) => b.dividend / b.price - a.dividend / a.price).find(x => p.money >= x.price + 500 + (L.smart ? risk(currentPlayer) : 0));
       if (s) { manage.stocks++; manage.n++; buyStock(s.id); return true; }
     }
     return false;
@@ -8189,12 +8245,57 @@ window.sellHouse = sellHouse;
   }
   // Cari uang saat krisis: satu aksi per tick. Return true jika ada aksi.
   function botRaise(p) {
-    const st = stockOwned[currentPlayer] || {};
+    const st = stockOwned[currentPlayer] || {}, smart = LV().smart;
+    const mortO = (keepSets) => { for (const id of p.props) if (!mortgaged[id] && !groupHasHouses(SPACES[id], false) && !(keepSets && isSet(SPACES[id], false, currentPlayer))) { mortgageProperty(id); return true; } return false; };
+    const mortI = (keepSets) => { for (const id of (p.propsInner || [])) if (!mortgagedInner[id] && !groupHasHouses(INNER_SPACES[id], true) && !(keepSets && isSet(INNER_SPACES[id], true, currentPlayer))) { mortgageInnerProperty(id); return true; } return false; };
+    // pintar: gadai tanah non-set dulu (set lengkap & saham dividen dipertahankan selama bisa)
+    if (smart && (mortO(true) || mortI(true))) return true;
     for (const sid of Object.keys(st)) { if (st[sid] > 0) { sellStock(sid); return true; } }
     for (const id of p.props) { if (canSellHouse(id)) { sellHouse(id); return true; } }
     for (const id of (p.propsInner || [])) { if (canSellInnerHouse(id)) { sellInnerHouse(id); return true; } }
-    for (const id of p.props) { if (!mortgaged[id] && !groupHasHouses(SPACES[id], false)) { mortgageProperty(id); return true; } }
-    for (const id of (p.propsInner || [])) { if (!mortgagedInner[id] && !groupHasHouses(INNER_SPACES[id], true)) { mortgageInnerProperty(id); return true; } }
+    return mortO(false) || mortI(false);
+  }
+
+  // ---------- kartu strategi bertarget ----------
+  const ATTACK = /steal_choose|steal_energy|steal_card|destroy_card|skip_player|^jail_player$/;
+  let botTarget = -1;
+  const worth = (q) => q.money + (q.props || []).reduce((s, id) => s + (SPACES[id].price || 0), 0) + (q.propsInner || []).reduce((s, id) => s + (INNER_SPACES[id].price || 0), 0);
+  function targetFor(id, p) {
+    const opp = players.map((q, i) => ({ q, i })).filter(x => x.i !== currentPlayer && !x.q.bankrupt);
+    const best = (f, ok) => { const c = opp.filter(x => ok(x.q)).sort((a, b) => f(b.q) - f(a.q))[0]; return c ? c.i : -1; };
+    if (/steal_choose/.test(id)) return best(q => q.money, q => q.money >= 150);                       // uang: incar yang terkaya
+    if (/steal_energy/.test(id)) return best(q => q.energy || 0, q => (q.energy || 0) >= 2);
+    if (/steal_card|destroy_card/.test(id)) return best(q => (q.hand || []).length, q => (q.hand || []).length >= 2);
+    return best(worth, q => worth(q) >= worth(p) * 0.9);                                                // skip/penjara: hanya pemain terdepan
+  }
+
+  // ---------- bot menawar dagang sendiri: lengkapi set yang kurang 1 tanah ----------
+  const tries = {}; let lastProp = -9;
+  function botPropose(p) {
+    if (!LV().smart || manage.prop || pendingTrade) return false;
+    manage.prop = true;
+    const turn = p.turnsPlayed || 0;
+    if (turn - lastProp < 3) return false;
+    for (const inner of [false, true]) {
+      if (inner && !isMulti()) continue;
+      const list = inner ? INNER_SPACES : SPACES, map = inner ? ownedInner : owned, mort = inner ? mortgagedInner : mortgaged;
+      for (const gp of new Set(list.map(s => s.group).filter(Boolean))) {
+        const mem = list.filter(s => s.group === gp);
+        const miss = mem.filter(s => map[s.id] !== currentPlayer);
+        if (mem.length < 2 || miss.length !== 1) continue;
+        const sp = miss[0], o = map[sp.id];
+        if (o === undefined || o === null || !players[o] || players[o].bankrupt || mort[sp.id] || groupHasHouses(sp, inner)) continue;
+        const key = (inner ? 'i' : 'o') + sp.id, n = tries[key] || 0;
+        if (n >= 4) continue;
+        const offer = Math.floor((sp.price || 0) * (1.4 + 0.3 * n) / 10) * 10;   // tawaran naik tiap percobaan
+        if (p.money - offer < 200) continue;
+        tries[key] = n + 1; lastProp = turn;
+        pendingTrade = { from: currentPlayer, to: o, myProps: [], theirProps: inner ? [] : [sp.id], myPropsInner: [], theirPropsInner: inner ? [sp.id] : [], myMoney: offer, theirMoney: 0 };
+        log(`🤖 ${p.name} menawar ${sp.name} milik ${players[o].name} dengan Rp${offer}.`);
+        showTradeAcceptModal();
+        return true;
+      }
+    }
     return false;
   }
 
@@ -8250,16 +8351,23 @@ window.sellHouse = sellHouse;
     }
     const p = players[currentPlayer];
     if (!p || !p.isBot) { setLock(false); return; }
+    if (shown('tradeAcceptModal')) { setLock(false); return; }   // tawaran bot ke manusia: biarkan manusia menjawab
     setLock(true);
 
     // reset penghitung aksi tiap giliran baru
     const key = currentPlayer + ':' + (p.turnsPlayed || 0);
-    if (manage.key !== key) manage = { key, n: 0, stocks: 0 };
+    if (manage.key !== key) manage = { key, n: 0, stocks: 0, tried: {}, prop: false };
 
     // 3) Modal
     if (shown('bankruptModal')) { $('bankruptOk').click(); return; }
     if (p.bankrupt) return;
     if (shown('stratDrawModal')) { $('stratDrawSave').click(); return; }
+    if (shown('stratModal')) {   // pilih target kartu serang
+      const bs = [...document.querySelectorAll('#stratModalBody [data-pi]')];
+      const b = bs.find(x => parseInt(x.dataset.pi, 10) === botTarget) || bs[0];
+      if (b) b.click(); else $('stratModal').classList.remove('show');
+      return;
+    }
     if (shown('cardModal')) { $('cardOk').click(); return; }
     if (shown('wheelModal')) { if (vis($('wheelOk')) && $('wheelOk').style.display !== '') $('wheelOk').click(); return; }
     if (shown('rouletteModal')) { const s = $('rouletteSkipBtn'); if (vis(s)) s.click(); return; }
@@ -8284,6 +8392,7 @@ window.sellHouse = sellHouse;
     }
     if ($('btnPayJail')) {
       if ((p.hasJailFree || 0) > 0 && $('btnFreeJail')) { $('btnFreeJail').click(); return; }
+      if (LV().smart && risk(currentPlayer) >= 140) { $('btnRollJail').click(); return; }   // papan berbahaya: lebih aman diam di penjara
       if (p.money >= 350) { $('btnPayJail').click(); return; }
       $('btnRollJail').click(); return;
     }
@@ -8293,6 +8402,7 @@ window.sellHouse = sellHouse;
     }
     if ($('btnEndTurn')) {
       if (botManage(p, false, true)) return;
+      if (botPropose(p)) return;
       $('btnEndTurn').click(); return;
     }
   }
