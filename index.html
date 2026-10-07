@@ -8579,8 +8579,7 @@ window.sellHouse = sellHouse;
   // 🔧 ICE SERVER ARRAY — TEMPEL ARRAY DARI METERED (atau penyedia TURN lain) DI SINI.
   // Ganti seluruh isi array ICE_SERVERS di bawah dengan "ICE Server Array" milikmu.
   // ============================================================================
-  var myPeerConnection = new RTCPeerConnection({
-  iceServers: [
+  const ICE_SERVERS = [
       {
         urls: "stun:stun.relay.metered.ca:80",
       },
@@ -8604,8 +8603,7 @@ window.sellHouse = sellHouse;
         username: "2a28375809e7e43901641784",
         credential: "1dPC7KEqJC2VkEel",
       },
-  ],
-});
+  ];
   function getIce() { return window.MN_ICE || ICE_SERVERS; }
   const TOPIC = 'monopoli-negara-';
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
