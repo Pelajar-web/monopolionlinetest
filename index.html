@@ -8604,11 +8604,44 @@ window.sellHouse = sellHouse;
         credential: "1dPC7KEqJC2VkEel",
       },
   ];
-  function getIce() { return window.MN_ICE || ICE_SERVERS; }
+  // Cadangan STUN/TURN publik (sama seperti Who The Spy): selalu ditambahkan di belakang ICE_SERVERS milikmu.
+  const BASE_ICE = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }
+  ];
+  function getIce() { return (window.MN_ICE || ICE_SERVERS).concat(BASE_ICE); }
+  // Opsional: window.MN_TURN_API_URL = URL API Metered yang mengembalikan array iceServers.
+  const PEERJS_URLS = ['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
+  function loadPeerJs() {
+    return new Promise((resolve, reject) => {
+      if (window.Peer) return resolve();
+      let i = 0;
+      (function next() {
+        if (i >= PEERJS_URLS.length) return reject(new Error('peerjs-load-failed'));
+        const sc = document.createElement('script'); sc.src = PEERJS_URLS[i++]; sc.async = true;
+        sc.onload = () => (window.Peer ? resolve() : next());
+        sc.onerror = () => { sc.remove(); next(); };
+        document.head.appendChild(sc);
+      })();
+    });
+  }
+  function loadIce() {
+    if (!window.MN_TURN_API_URL || window.MN_ICE || !window.fetch) return Promise.resolve();
+    const ctl = window.AbortController ? new AbortController() : null, to = setTimeout(() => ctl && ctl.abort(), 7000);
+    return fetch(window.MN_TURN_API_URL, ctl ? { signal: ctl.signal } : undefined).then((r) => { if (!r.ok) throw 0; return r.json(); })
+      .then((j) => { const a = Array.isArray(j) ? j : j && j.iceServers; if (Array.isArray(a) && a.length) window.MN_ICE = a; })
+      .catch(() => console.warn('[online] gagal ambil kredensial TURN dari MN_TURN_API_URL')).then(() => clearTimeout(to));
+  }
+  const loadAll = () => Promise.all([loadPeerJs(), loadIce()]);
+  const peerOpts = () => ({ config: { iceServers: getIce() } });
+  const peerErrText = (err) => { const t = err && err.type; return t === 'browser-incompatible' ? 'Browser ini tidak mendukung WebRTC.' : (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') ? 'Tidak bisa terhubung ke server signaling. Periksa internet lalu coba lagi.' : 'Terjadi kesalahan koneksi' + (t ? ' (' + t + ')' : '') + '.'; };
+  // pembungkus DataConnection PeerJS agar kompatibel dengan sendDC (dc.readyState / dc.send / dc.close)
+  const wrapConn = (c) => ({ get readyState() { return c.open ? 'open' : 'closed'; }, send: (x) => c.send(x), close: () => { try { c.close(); } catch (e) {} } });
   const TOPIC = 'monopoli-negara-';
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const LOCAL_IDS = new Set(['zoomBar']);          // elemen yang tidak disinkronkan (lokal per perangkat)
-  const CHUNK = 14000;
+  const CHUNK = 7000;   // kecil: serialisasi json PeerJS bisa menggandakan ukuran (escape tanda kutip)
   const HOLD_BOT_MS = 10000;                       // tamu putus > 10 dtk -> diambil alih Bot
 
   const rnd = (n, set = CODE_CHARS) => Array.from({ length: n }, () => set[Math.floor(Math.random() * set.length)]).join('');
@@ -8623,7 +8656,7 @@ window.sellHouse = sellHouse;
     peers: new Set(),     // host: peer terhubung
     pend: {},             // host: gid -> peer (jabat tangan berjalan)
     last: {}, lastMeta: '', lastDyn: '', dirty: new Set(), tFlush: 0, lastFlushAt: 0,
-    es: null,             // langganan relay
+    es: null, pj: null, sid: 0,   // pj: objek Peer (PeerJS), sid: penanda sesi jaringan
     guest: null,          // tamu: { pc, dc, status }
     seat: -1, gmeta: null, view: 'menu', manual: [], rx: Promise.resolve(), parts: {}
   };
@@ -8899,8 +8932,15 @@ window.sellHouse = sellHouse;
   }
 
   // ====================== WebRTC dasar ======================
-  function newPC() { return new RTCPeerConnection({ iceServers: getIce(), iceCandidatePoolSize: 2 }); }
-  function waitIce(pc, ms = 6000) {
+  function newPC() {
+    const pc = new RTCPeerConnection({ iceServers: getIce(), iceCandidatePoolSize: 2 });
+    pc._errs = [];
+    // diagnosa: catat galat server STUN/TURN (401 = kredensial ditolak, 701 = server tak terjangkau)
+    pc.addEventListener('icecandidateerror', (e) => { pc._errs.push(e.errorCode + (e.url ? ' ' + e.url : '')); console.warn('[ICE error]', e.errorCode, e.errorText, e.url); });
+    return pc;
+  }
+  const hasRelay = (sdp) => /typ relay/.test(sdp || '');
+  function waitIce(pc, ms = 10000) {
     return new Promise((res) => {
       if (pc.iceGatheringState === 'complete') return res();
       const done = () => { pc.removeEventListener('icegatheringstatechange', chk); clearTimeout(t); res(); };
@@ -8920,6 +8960,7 @@ window.sellHouse = sellHouse;
     await pc.setLocalDescription(await pc.createOffer());
     await waitIce(pc);
     peer.offer = pc.localDescription.sdp;
+    if (!hasRelay(peer.offer)) { console.warn('[ICE] host tanpa kandidat relay TURN', pc._errs); if (!OL.noRelayWarned) { OL.noRelayWarned = true; toast('⚠️ Host tidak dapat relay TURN (' + (pc._errs[0] || 'tanpa galat') + '). Pemain di jaringan ketat bisa gagal masuk.'); } }
     return peer;
   }
   // tamu: dari offer -> answer
@@ -8933,93 +8974,99 @@ window.sellHouse = sellHouse;
       dc.onclose = () => guestLost();
     };
     pc.oniceconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.iceConnectionState)) setTimeout(() => { if (OL.guest === g && ['failed', 'closed'].includes(pc.iceConnectionState)) guestLost(); }, 1500); };
+    g.hostRelay = hasRelay(offerSdp);
     await pc.setRemoteDescription({ type: 'offer', sdp: offerSdp });
     await pc.setLocalDescription(await pc.createAnswer());
     await waitIce(pc);
+    g.myRelay = hasRelay(pc.localDescription.sdp);
     return g;
   }
 
-  // ====================== relay ntfy (kode room) ======================
-  const seen = new Set();
-  function relayPub(code, obj) {
-    const s = JSON.stringify(obj), id = rnd(6), n = Math.ceil(s.length / 3000), url = RELAY + TOPIC + code;
-    const jobs = [];
-    for (let k = 0; k < n; k++) jobs.push(fetch(url, { method: 'POST', body: JSON.stringify({ i: id, k, n, d: s.slice(k * 3000, (k + 1) * 3000) }) }));
-    return Promise.all(jobs);
-  }
-  function relaySub(code, onMsg, onOpen, onErr) {
-    const es = new EventSource(RELAY + TOPIC + code + '/sse'), buf = {};
-    es.onopen = () => onOpen && onOpen();
-    es.onerror = () => onErr && onErr();
-    es.onmessage = (ev) => {
-      try {
-        const m = JSON.parse(ev.data); if (m.event && m.event !== 'message') return;
-        const f = JSON.parse(m.message); const p = buf[f.i] || (buf[f.i] = []); p[f.k] = f.d;
-        if (p.filter((x) => x !== undefined).length < f.n) return;
-        delete buf[f.i]; onMsg(JSON.parse(p.join('')));
-      } catch (e) {}
-    };
-    return es;
-  }
-
-  // ---- host lewat relay ----
-  function hostOpenRoom() {
-    if (OL.role === 'host') return;
-    OL.role = 'host'; OL.code = rnd(6);
-    document.body.classList.add('ol-host');
-    OL.es = relaySub(OL.code, async (m) => {
-      if (m.t === 'join' && m.gid && !OL.pend[m.gid] && !seen.has(m.gid)) {
-        seen.add(m.gid);
-        if (Object.keys(OL.pend).length > 8) return;
-        try {
-          const peer = await hostCreatePeer(); OL.pend[m.gid] = peer;
-          setTimeout(() => { if (!peer.seat && peer.seat !== 0) { try { peer.pc.close(); } catch (e) {} } delete OL.pend[m.gid]; }, 40000);
-          await relayPub(OL.code, { t: 'offer', gid: m.gid, sdp: peer.offer });
-        } catch (e) { console.error(e); }
-      } else if (m.t === 'answer' && OL.pend[m.gid]) {
-        try { await OL.pend[m.gid].pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); } catch (e) { console.error(e); }
-      }
-    }, () => { OL.relayOk = true; renderOverlay(); }, () => { OL.relayOk = false; renderOverlay(); });
-    startHostLoopsOnce(); renderOverlay(); updatePill();
-  }
+  // ====================== kode room lewat PeerJS (seperti Who The Spy) ======================
+  // Signaling & trickle ICE ditangani PeerJS; tamu menyambung ke Peer ID TOPIC + kode room.
   let loopsStarted = false;
   function startHostLoopsOnce() { if (!loopsStarted) { loopsStarted = true; startHostLoops(); } }
+
+  function hostOnConn(conn) {
+    const peer = { pc: { close() { try { conn.close(); } catch (e) {} } }, dc: wrapConn(conn), seat: null, name: '', conn };
+    conn.on('data', (raw) => onRaw(raw, (m) => hostMsg(peer, m)));
+    conn.on('close', () => hostPeerGone(peer));
+    conn.on('error', () => {});
+    setTimeout(() => { if (peer.seat == null) peerClose(peer); }, 40000);   // tak kirim 'hi' -> tutup
+  }
+  function hostTryPeer(sid, n) {
+    if (n >= 6) { OL.relayOk = false; renderOverlay(); return; }
+    const code = rnd(6); let p, opened = false;
+    try { p = new window.Peer(TOPIC + code, peerOpts()); } catch (e) { OL.relayOk = false; renderOverlay(); return; }
+    p.on('open', () => {
+      if (sid !== OL.sid) { try { p.destroy(); } catch (e) {} return; }
+      opened = true; OL.pj = p; OL.code = code; OL.relayOk = true; renderOverlay(); updatePill();
+    });
+    p.on('error', (err) => {
+      if (sid !== OL.sid) return;
+      if (!opened) { try { p.destroy(); } catch (e) {} if (err && err.type === 'unavailable-id') { hostTryPeer(sid, n + 1); return; } OL.relayOk = false; renderOverlay(); return; }
+      console.warn('[online] peer error', err);
+    });
+    p.on('connection', (c) => { if (sid === OL.sid && OL.role === 'host') hostOnConn(c); else { try { c.close(); } catch (e) {} } });
+    p.on('disconnected', () => { if (sid !== OL.sid || !opened) return; setTimeout(() => { if (sid === OL.sid) { try { p.reconnect(); } catch (e) {} } }, 3000); });
+  }
+  function hostOpenRoom() {
+    if (OL.role === 'host') return;
+    OL.role = 'host'; OL.code = ''; OL.relayOk = null;
+    document.body.classList.add('ol-host');
+    const sid = ++OL.sid;
+    loadAll().then(() => { if (sid === OL.sid) hostTryPeer(sid, 0); }, () => { OL.relayOk = false; renderOverlay(); });
+    startHostLoopsOnce(); renderOverlay(); updatePill();
+  }
   function hostCloseRoom() {
-    try { OL.es && OL.es.close(); } catch (e) {}
+    OL.sid++;
+    try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
     OL.peers.forEach((p) => peerClose(p));
     Object.values(OL.pend).forEach((p) => { try { p.pc.close(); } catch (e) {} });
     OL.peers.clear(); OL.pend = {}; OL.seats = {}; OL.role = null; OL.code = ''; OL.last = {}; OL.lastMeta = ''; OL.lastDyn = '';
     setLockClass(false); document.body.classList.remove('ol-host'); applySeatNames(); renderOverlay(); updatePill();
   }
 
-  // ---- tamu lewat relay ----
+  // ---- tamu ----
   function guestJoin(code, name) {
     code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 6) { setMsg('Kode room harus 6 karakter.', true); return; }
     name = (name || '').trim().slice(0, 16) || 'Tamu'; OL.name = name; setName(name);
-    OL.role = 'guest'; OL.code = code; guestStatus('Menghubungi relay…');
-    const gid = rnd(8); let got = false;
-    const fail = (t) => { if (got) return; setMsg(t, true); guestReset(); };
-    const es = relaySub(code, async (m) => {
-      if (m.gid !== gid) return;
-      if (m.t === 'offer' && !got) {
-        got = true; guestStatus('Membuat koneksi…');
-        try {
-          const g = await guestAnswer(m.sdp, () => { guestStatus('Tersambung, menunggu host…'); try { es.close(); } catch (e) {} });
-          await relayPub(code, { t: 'answer', gid, sdp: g.pc.localDescription.sdp });
-          setTimeout(() => { if (OL.guest && OL.guest.status !== 'open') { setMsg('Gagal tersambung: jaringan salah satu pemain memblokir P2P. Coba ganti jaringan (WiFi ⇄ data seluler) atau pasang server TURN di kode game (ICE_SERVERS).', true); guestReset(); OL.view = 'menu'; showOverlay(); renderOverlay(); } }, 30000);
-        } catch (e) { console.error(e); got = false; fail('Gagal membuat koneksi.'); }
-      }
-    }, async () => {
-      guestStatus('Mencari room ' + code + '…');
-      try { await relayPub(code, { t: 'join', gid, name }); } catch (e) { fail('Relay tidak bisa dihubungi. Coba mode manual.'); }
-      setTimeout(() => { if (!got && OL.role === 'guest' && !OL.guest) fail('Room ' + code + ' tidak ditemukan / host offline.'); }, 12000);
-    }, () => { if (!got && !OL.guest) { /* EventSource auto-reconnect */ } });
-    OL.es = es;
+    OL.role = 'guest'; OL.code = code; guestStatus('Memuat WebRTC…');
+    const sid = ++OL.sid; let joined = false, timer = 0;
+    const fail = (t) => { if (sid !== OL.sid || joined) return; clearTimeout(timer); setMsg(t, true); guestReset(); OL.view = 'menu'; showOverlay(); renderOverlay(); };
+    loadAll().then(() => {
+      if (sid !== OL.sid) return;
+      guestStatus('Menghubungi room ' + code + '…');
+      let p; try { p = new window.Peer(undefined, peerOpts()); } catch (e) { fail('Browser ini tidak mendukung WebRTC.'); return; }
+      OL.pj = p;
+      timer = setTimeout(() => fail('Room tidak merespons. Pastikan host masih online & kodenya benar. Jika kalian beda jaringan, coba ganti jaringan (WiFi ⇄ data seluler).'), 25000);
+      p.on('open', () => {
+        if (sid !== OL.sid) return;
+        const c = p.connect(TOPIC + code, { reliable: true, serialization: 'json' });
+        const g = { pc: { close() { try { c.close(); } catch (e) {} } }, dc: wrapConn(c), status: 'connecting', conn: c };
+        OL.guest = g;
+        c.on('open', () => {
+          if (sid !== OL.sid) return;
+          joined = true; g.status = 'open'; clearTimeout(timer);
+          sendDC(g.dc, { t: 'hi', name: OL.name, cid: OL.cid }); guestStatus('Tersambung, menunggu host…');
+        });
+        c.on('data', (raw) => { if (sid === OL.sid) onRaw(raw, guestMsg); });
+        c.on('close', () => { if (sid === OL.sid && joined) guestLost(); });
+        c.on('error', () => fail('Gagal menghubungi room.'));
+      });
+      p.on('error', (err) => {
+        if (sid !== OL.sid) return;
+        if (err && err.type === 'peer-unavailable') fail('Room ' + code + ' tidak ditemukan / host offline.');
+        else if (!joined) fail(peerErrText(err));
+        else console.warn('[online] peer error', err);
+      });
+    }, () => fail('Gagal memuat library WebRTC (PeerJS). Pastikan internet aktif lalu coba lagi.'));
   }
   function guestReset() {
-    try { OL.es && OL.es.close(); } catch (e) {}
+    OL.sid++;
     try { OL.guest && OL.guest.pc.close(); } catch (e) {}
+    try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
     OL.guest = null; OL.role = null; OL.seat = -1; OL.gmeta = null; guestUI(false); setLockClass(false); renderOverlay(); updatePill();
   }
   function guestLost() {
@@ -9222,9 +9269,9 @@ window.sellHouse = sellHouse;
     if (OL.role === 'host' && v !== 'menu') {
       h = `<div class="ol-card">${close}<h3>🌐 Room Online</h3>
         <div class="ol-sub">Bagikan kode ini ke temanmu:</div>
-        <div class="ol-code" id="olCode">${esc(OL.code)}</div>
+        <div class="ol-code" id="olCode">${esc(OL.code || '…')}</div>
         <div class="ol-row"><button class="btn-secondary btn-sm" data-a="copycode">📋 Salin kode</button><button class="btn-secondary btn-sm" data-a="manual">🔧 Undang manual</button></div>
-        ${OL.relayOk === false ? '<div class="ol-msg err">Relay tidak terhubung — pakai “Undang manual”.</div>' : ''}
+        ${OL.relayOk === false ? '<div class="ol-msg err">Server signaling tidak terhubung — cek internet, atau pakai “Undang manual”.</div>' : ''}
         <div class="ol-sub" style="margin-top:12px">Pemain:</div>${seatRows()}
         ${manualHost()}
         <div class="ol-sub" style="margin-top:10px">${gameStarted() ? 'Game berjalan. Yang terputus bisa masuk lagi dengan kode yang sama.' : 'Atur jumlah pemain, nama, warna & avatar di menu, lalu tekan <b>Mulai Permainan</b>.'}</div>
