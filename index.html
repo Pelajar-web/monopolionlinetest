@@ -1230,8 +1230,6 @@ body.bot-lock #statusText::before{content:"🤖 ";}
 .ol-tag{display:inline-block;font-size:.72rem;font-weight:800;color:#7dd3fc;margin-bottom:4px}
 body.ol-guest #setup{display:none !important}
 body.ol-host #mainMenuBtn, body.ol-guest #mainMenuBtn{display:none !important}
-#closeRoomBtn{display:none}
-body.ol-host #closeRoomBtn{display:block}
 #playerInputs input.ol-locked-name{opacity:.8;cursor:not-allowed;background:rgba(255,255,255,.05)}
 #olPill{border-left:6px solid var(--pc,rgba(56,189,248,.5))}
 body.ol-guest #viewStratBtn,body.ol-guest .extra-btns button,body.ol-guest #mainMenuBtn{position:relative}
@@ -1420,7 +1418,6 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
         🃏 Kartu Strategi <span id="stratEnergyBadge" style="background:rgba(0,0,0,0.28);padding:3px 10px;border-radius:999px;font-size:0.82rem;font-weight:700">⚡ 10</span>
       </button>
       <button class="btn-secondary" id="mainMenuBtn" type="button" style="width:100%;padding:12px 16px;margin-top:6px;font-size:0.9rem">☰ Menu Utama</button>
-      <button class="btn-danger" id="closeRoomBtn" data-ol type="button" style="width:100%;padding:12px 16px;margin-top:6px;font-size:0.9rem">🚪 Tutup Room (Akhiri Game)</button>
       <h3>Log</h3>
       <div class="log" id="gameLog"></div>
     </div>
@@ -9478,10 +9475,6 @@ window.sellHouse = sellHouse;
       setTimeout(() => { OL.last = {}; flush(true); hideOverlay(); }, 80);
     }, true);
   }
-  document.addEventListener('click', (e) => {
-    const b = e.target.closest && e.target.closest('#closeRoomBtn');
-    if (b && OL.role === 'host') hostEndRoom();
-  });
   // Nama pemain online hanya boleh diatur pemain itu sendiri: host tidak bisa mengubahnya
   { const sb = $('startBtn'), np = $('numPlayers');
     if (sb) sb.addEventListener('click', () => {
