@@ -374,6 +374,13 @@ button.btn-ripple.rippling::after {
   transform: scale(1.03);
   background: rgba(30, 58, 90, 0.55);
 }
+/* ===== Warna pemain di kartu giliran (atas) ===== */
+.player-card { border-left: 5px solid var(--pc, transparent); }
+.player-card .name { color: var(--pc, inherit); }
+.player-card.active {
+  border-color: var(--pc, var(--accent));
+  box-shadow: 0 0 0 2px var(--pc, rgba(56,189,248,0.3)), 0 8px 24px rgba(0,0,0,0.35);
+}
 .player-card .name {
   font-weight: 700; display: flex; align-items: center; gap: 5px;
   font-size: 0.82rem; letter-spacing: -0.01em;
@@ -390,6 +397,7 @@ button.btn-ripple.rippling::after {
   animation: immunePulse 1.6s ease-in-out infinite;
 }
 .player-card.immune.active { border-color: #22d3ee; }
+.player-card.immune, .player-card.immune.active { border-left-color: var(--pc, #22d3ee); }
 .immune-badge {
   display: inline-flex; align-items: center; gap: 2px;
   margin-top: 4px; padding: 1px 7px; border-radius: 999px;
@@ -693,6 +701,8 @@ button.btn-ripple.rippling::after {
 .log-entry.important { color: var(--gold); font-weight: 600; }
 .log-entry.money { color: var(--green); }
 .log-entry.rent { color: var(--red); }
+.log-pl { font-weight: 700; color: var(--pc, inherit); }
+.log-pl::before { content: attr(data-av) " "; }
 
 .action-area { display: flex; flex-direction: column; gap: 8px; }
 .action-btns { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1219,6 +1229,11 @@ body.bot-lock #statusText::before{content:"🤖 ";}
 @keyframes olp{50%{box-shadow:0 0 0 6px rgba(52,211,153,.25)}}
 .ol-tag{display:inline-block;font-size:.72rem;font-weight:800;color:#7dd3fc;margin-bottom:4px}
 body.ol-guest #setup{display:none !important}
+body.ol-host #mainMenuBtn, body.ol-guest #mainMenuBtn{display:none !important}
+#closeRoomBtn{display:none}
+body.ol-host #closeRoomBtn{display:block}
+#playerInputs input.ol-locked-name{opacity:.8;cursor:not-allowed;background:rgba(255,255,255,.05)}
+#olPill{border-left:6px solid var(--pc,rgba(56,189,248,.5))}
 body.ol-guest #viewStratBtn,body.ol-guest .extra-btns button,body.ol-guest #mainMenuBtn{position:relative}
 body.ol-lock .action-area,body.ol-lock .board-popup-overlay,body.ol-lock .extra-btns button,body.ol-lock #mainMenuBtn,body.ol-lock #viewStratBtn,
 body.ol-lock #cardModal,body.ol-lock #wheelModal,body.ol-lock #debtModal,body.ol-lock #bankruptModal,body.ol-lock #rouletteModal,
@@ -1405,6 +1420,7 @@ body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
         🃏 Kartu Strategi <span id="stratEnergyBadge" style="background:rgba(0,0,0,0.28);padding:3px 10px;border-radius:999px;font-size:0.82rem;font-weight:700">⚡ 10</span>
       </button>
       <button class="btn-secondary" id="mainMenuBtn" type="button" style="width:100%;padding:12px 16px;margin-top:6px;font-size:0.9rem">☰ Menu Utama</button>
+      <button class="btn-danger" id="closeRoomBtn" data-ol type="button" style="width:100%;padding:12px 16px;margin-top:6px;font-size:0.9rem">🚪 Tutup Room (Akhiri Game)</button>
       <h3>Log</h3>
       <div class="log" id="gameLog"></div>
     </div>
@@ -1968,6 +1984,7 @@ const CHANCE_CARDS = [
   { text: 'Terima warisan Rp100.', action: 'money', money: 100 },
   { text: 'Bayar denda parkir Rp15.', action: 'pay', money: -15 },
   { text: 'Kamu menemukan Roda Keberuntungan! Putar sekarang.', action: 'wheel' },
+  { text: 'Hadiah Properti. Terima Rp25 per properti milikmu.', action: 'gainprop', money: 25 },
 ];
 
 const CHEST_CARDS = [
@@ -1984,6 +2001,7 @@ const CHEST_CARDS = [
   { text: 'Konsultasi. Terima Rp25.', action: 'money', money: 25 },
   { text: 'Anda mewarisi Rp100.', action: 'money', money: 100 },
   { text: 'Undian Roda Keberuntungan! Putar sekarang.', action: 'wheel' },
+  { text: 'Hadiah Properti. Terima Rp25 per properti milikmu.', action: 'gainprop', money: 25 },
 ];
 
 // Saham (Stocks)
@@ -2397,14 +2415,17 @@ const STRATEGY_CARDS = [
   { id: 'b4_interest', name: 'Bunga Deposito', short: '🏦 Bunga 10%', rarity: 'langka', desc: 'Terima 10% dari uangmu sendiri (maks Rp250).' },
   { id: 'b4_steal_choose_20pct', name: 'Rampas 20% Pilih', short: '🥷 Pilih 20%', rarity: 'langka', desc: 'Pilih 1 pemain, ambil 20% uangnya (maks Rp200).' },
   { id: 'b4_prev_free', name: 'Tanah Kosong Belakang', short: '🗺️ Mundur Tanah Kosong', rarity: 'epik', desc: 'Mundur ke properti tanpa pemilik terdekat di belakang (Tingkat Luar).' },
-  { id: 'b4_prop_tax', name: 'Pajak Aset', short: '🏘️ Pajak Aset', rarity: 'langka', desc: 'Setiap lawan bayar Rp10 per properti miliknya.' },
+  { id: 'b4_prop_tax_small', name: 'Pajak Aset', short: '🏘️ Pajak Aset', rarity: 'biasa', desc: 'Setiap lawan bayar Rp10 per properti miliknya.' },
+  { id: 'b4_prop_tax', name: 'Pajak Aset+', short: '🏘️ Pajak Aset+', rarity: 'langka', desc: 'Setiap lawan bayar Rp20 per properti miliknya.' },
+  { id: 'b4_props_gain_20', name: 'Keuntungan Properti', short: '🏘️ Keuntungan Properti', rarity: 'langka', desc: 'Terima Rp20 per properti milikmu.' },
+  { id: 'b4_props_gain_35', name: 'Kekayaan Properti', short: '🏢 Kekayaan Properti', rarity: 'epik', desc: 'Terima Rp35 per properti milikmu.' },
   { id: 'b4_swap_energy', name: 'Tukar Energi', short: '🔄 Tukar ⚡', rarity: 'langka', desc: 'Pilih 1 pemain, tukar seluruh energi kalian.' },
   { id: 'b4_jail_poorest', name: 'Penjarakan Termiskin', short: '🔒 Penjara Miskin', rarity: 'langka', desc: 'Pemain termiskin langsung masuk Penjara.' },
   { id: 'b4_unmort_half', name: 'Tebus Setengah', short: '🔓 Tebus −50%', rarity: 'langka', desc: 'Tebus 1 tanahmu yang digadai dengan diskon 50%.' },
   { id: 'b4_draw_rare_only', name: 'Undi Langka+', short: '🃏 Undi Langka+', rarity: 'langka', desc: 'Tarik 1 kartu strategi berkelas Langka, Epik, atau Legendaris.' },
   { id: 'b4_from_all_75', name: 'Upeti Besar', short: '🤝 +Rp75×', rarity: 'epik', desc: 'Terima Rp75 dari setiap pemain lain.' },
   { id: 'b4_jail_two_richest', name: 'Penjarakan 2 Terkaya', short: '🔒 2 Terkaya', rarity: 'epik', desc: '2 pemain terkaya langsung masuk Penjara.' },
-  { id: 'b4_prop_tax_big', name: 'Pajak Aset Besar', short: '🏘️ Pajak Aset+', rarity: 'epik', desc: 'Setiap lawan bayar Rp25 per properti miliknya.' },
+  { id: 'b4_prop_tax_big', name: 'Pajak Aset++', short: '🏘️ Pajak Aset++', rarity: 'epik', desc: 'Setiap lawan bayar Rp35 per properti miliknya.' },
   { id: 'b4_prop_tax_god', name: 'Pajak Kerajaan', short: '👑 Pajak Rp50/Tanah', rarity: 'legendaris', desc: 'Setiap lawan bayar Rp50 per properti miliknya (semua tingkat papan).' },
   { id: 'b4_harvest_god', name: 'Panen Raya', short: '👑 +Rp50/Tanah', rarity: 'legendaris', desc: 'Terima Rp50 per properti milikmu (semua tingkat papan).' },
 ];
@@ -3179,6 +3200,7 @@ function updatePlayersPanel() {
     const card = document.createElement('div');
     card.className = 'player-card' + (i === currentPlayer && !p.bankrupt ? ' active' : '') + ((p.immunityTurns || 0) > 0 && !p.bankrupt ? ' immune' : '');
     if (p.bankrupt) card.style.opacity = '0.45';
+    if (p.color) card.style.setProperty('--pc', p.color);
     const stockCount = Object.values(stockOwned[i] || {}).reduce((a,b)=>a+b, 0);
     const houseCount = p.props.reduce((a, id) => a + (houses[id] || 0), 0);
     card.innerHTML = `
@@ -3189,15 +3211,51 @@ function updatePlayersPanel() {
     `;
     panel.appendChild(card);
   });
-  document.getElementById('turnInfo').textContent = `Giliran: ${players[currentPlayer]?.avatar || ''} ${players[currentPlayer]?.name || '-'}`;
+  {
+    const ti = document.getElementById('turnInfo'), cp = players[currentPlayer];
+    ti.textContent = `Giliran: ${cp?.avatar || ''} ${cp?.name || '-'}`;
+    ti.style.color = (cp && cp.color) ? cp.color : '';
+    ti.style.fontWeight = (cp && cp.color) ? '700' : '';
+  }
   if (typeof auction !== 'undefined' && auction && typeof refreshAuctionBidderInfo === 'function') refreshAuctionBidderInfo();
 }
 
+function escLogHtml(x) {
+  return String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+// Beri avatar + warna pada setiap nama pemain di teks log (avatar lewat CSS ::before agar teks tersimpan tetap bersih)
+function logPlayerHtml(msg) {
+  try {
+    const list = (typeof players !== 'undefined' && players) ? players : [];
+    const byName = new Map();
+    list.forEach(p => { if (p && p.name && String(p.name).trim() && !byName.has(String(p.name))) byName.set(String(p.name), p); });
+    if (!byName.size) return null;
+    const names = [...byName.keys()].sort((a, b) => b.length - a.length);
+    const re = new RegExp('(^|[^\\p{L}\\p{N}_])(' + names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![\\p{L}\\p{N}_])', 'gu');
+    const text = String(msg);
+    let first = null, out = '', last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      const pl = byName.get(m[2]); if (!pl) continue;
+      if (!first) first = pl;
+      out += escLogHtml(text.slice(last, m.index)) + escLogHtml(m[1]) +
+        '<span class="log-pl" data-av="' + escLogHtml(pl.avatar || '') + '" style="--pc:' + escLogHtml(pl.color || 'inherit') + '">' + escLogHtml(m[2]) + '</span>';
+      last = m.index + m[0].length;
+    }
+    if (!first) return null;
+    return { html: out + escLogHtml(text.slice(last)), color: first.color || '' };
+  } catch (e) { return null; }
+}
 function log(msg, cls = '') {
   const logEl = document.getElementById('gameLog');
   const entry = document.createElement('div');
   entry.className = 'log-entry ' + cls;
-  entry.textContent = msg;
+  const r = logPlayerHtml(msg);
+  if (r) {
+    entry.innerHTML = r.html;
+    if (r.color) { entry.style.borderLeft = '3px solid ' + r.color; entry.style.paddingLeft = '6px'; }
+  } else {
+    entry.textContent = msg;
+  }
   logEl.prepend(entry);
 }
 
@@ -4522,7 +4580,7 @@ const AUCTION_MONEY_CARDS = new Set(['money_30','money_200','money_400','money_1
   'steal_choose_100','steal_choose_200','steal_choose_25pct','steal_choose_500','b4_steal_choose_40','b4_steal_choose_10pct','b4_steal_choose_20pct',
   'rent_to_me','stock_div_half','b3_div_double','b3_div_triple','b3_catch_up','b3_lottery_big','b4_lottery_flash',
   'b4_interest','b4_props_bonus','b4_rail_bonus','b4_energy_to_money','b3_steal_all_10pct','b3_steal_all_20pct','b3_park_3q','b4_park_fifth',
-  'b3_rich_tax','b4_prop_tax','b4_prop_tax_big','b4_prop_tax_god','b4_harvest_god','steal_all_stocks','stock_steal_1']);
+  'b3_rich_tax','b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','steal_all_stocks','stock_steal_1']);
 function realTurnIdx() {
   return (auction && auction.realPlayer != null) ? auction.realPlayer : currentPlayer;
 }
@@ -6776,6 +6834,12 @@ function applyStratCardCore(cardId, opts) {
         const n = (p.props || []).length + (p.propsInner || []).length; if (!n) { refund('Kamu belum punya properti'); return; }
         gain(n * 10, `bonus aset ${n} properti`); return;
       }
+      case 'b4_props_gain_20':
+      case 'b4_props_gain_35': {
+        const per = cardId === 'b4_props_gain_35' ? 35 : 20;
+        const n = (p.props || []).length + (p.propsInner || []).length; if (!n) { refund('Kamu belum punya properti'); return; }
+        gain(n * per, `keuntungan ${n} properti`); return;
+      }
       case 'b4_rail_bonus': {
         const n = (p.props || []).filter(id => SPACES[id] && SPACES[id].type === 'rail').length;
         if (!n) { refund('Kamu belum punya stasiun'); return; }
@@ -6855,9 +6919,10 @@ function applyStratCardCore(cardId, opts) {
         if (!n) { refund('Kamu belum punya properti'); return; }
         gain(n * 50, `panen raya ${n} properti`); return;
       }
+      case 'b4_prop_tax_small':
       case 'b4_prop_tax':
       case 'b4_prop_tax_big': {
-        const per = cardId === 'b4_prop_tax_big' ? 25 : 10;
+        const per = cardId === 'b4_prop_tax_big' ? 35 : (cardId === 'b4_prop_tax' ? 20 : 10);
         let t = 0;
         foes().forEach(({ op, i }) => {
           const n = (op.props || []).length + (op.propsInner || []).length;
@@ -7377,6 +7442,18 @@ function applyCard(card) {
         endTurnOrDouble();
       }
     }
+  } else if (card.action === 'gainprop') {
+    const n = (p.props || []).length + (p.propsInner || []).length;
+    const gainAmt = n * card.money;
+    if (gainAmt > 0) {
+      p.money += gainAmt;
+      moneyAnim(currentPlayer, gainAmt);
+      log(`${p.name}: ${card.text} (${n} properti = Rp${gainAmt})`, 'money');
+    } else {
+      log(`${p.name}: ${card.text} (belum punya properti)`);
+    }
+    updatePlayersPanel();
+    endTurnOrDouble();
   } else if (card.action === 'wheel') {
     log(`${p.name}: ${card.text}`, 'important');
     spinFortuneWheel();
@@ -8186,7 +8263,7 @@ window.sellHouse = sellHouse;
   const SAFE_CARDS = new Set(['money_30','money_200','money_400','money_1000','from_all_5','b3_from_all_35','b3_from_all_150','b4_from_all_75',
     'steal_20','steal_50','steal_200','steal_500','steal_from_poorest','steal_random_25','steal_half_richest','steal_richest_20pct',
     'b3_lottery_big','b4_lottery_flash','b3_catch_up','b4_interest','b4_props_bonus','b4_rail_bonus','b3_steal_all_10pct','b3_steal_all_20pct',
-    'b4_prop_tax','b4_prop_tax_big','b4_prop_tax_god','b4_harvest_god','stock_div_half','b3_div_double','b3_div_triple','b3_park_3q','b4_park_fifth','b3_rich_tax']);
+    'b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','stock_div_half','b3_div_double','b3_div_triple','b3_park_3q','b4_park_fifth','b3_rich_tax']);
   const ENERGY_CARDS = new Set(['energy_1','energy_3','energy_5']);
 
   function botManage(p, allowCards, atEnd) {
@@ -8768,6 +8845,7 @@ window.sellHouse = sellHouse;
     try {
       m.actor = actorIdx(); m.cur = currentPlayer;
       m.names = players.map((p) => (p.avatar || '') + ' ' + p.name);
+      m.colors = players.map((p) => p.color || '');
       m.map = currentMapId;
       if (currentMapId === 'big96' && players[realTurnIdx()]) m.follow = 'space-' + players[realTurnIdx()].pos;
     } catch (e) {}
@@ -8897,8 +8975,11 @@ window.sellHouse = sellHouse;
       } else if (tag) tag.remove();
       if (st && i > 0) {
         inp.value = st.name;
+        inp.readOnly = true; inp.classList.add('ol-locked-name'); inp.title = 'Nama diatur oleh pemain yang bergabung';
         const cb = row.querySelector('input[data-bot]'); if (cb) cb.checked = false;
-      } else if (reset && i > 0 && /^[^\s]*$/.test('') ) { /* noop */ }
+      } else if (i > 0) {
+        inp.readOnly = false; inp.classList.remove('ol-locked-name'); inp.removeAttribute('title');
+      }
     });
   }
 
@@ -9018,6 +9099,16 @@ window.sellHouse = sellHouse;
     loadAll().then(() => { if (sid === OL.sid) hostTryPeer(sid, 0); }, () => { OL.relayOk = false; renderOverlay(); });
     startHostLoopsOnce(); renderOverlay(); updatePill();
   }
+  // Host menekan Tutup Room: jika game berjalan, game langsung berakhir untuk semua pemain.
+  function hostEndRoom() {
+    if (OL.role !== 'host') return;
+    if (!gameStarted()) { hostCloseRoom(); OL.view = 'menu'; hideOverlay(); return; }
+    if (!confirm('Tutup room? Permainan akan langsung berakhir untuk semua pemain.')) return;
+    const msg = { t: 'end', why: 'Host menutup room. Permainan berakhir.' };
+    Promise.all([...OL.peers].map((p) => sendDC(p.dc, msg))).catch(() => {}).then(() => {
+      setTimeout(() => { try { hostCloseRoom(); } catch (e) {} location.reload(); }, 500);
+    });
+  }
   function hostCloseRoom() {
     OL.sid++;
     try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
@@ -9069,8 +9160,15 @@ window.sellHouse = sellHouse;
     try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
     OL.guest = null; OL.role = null; OL.seat = -1; OL.gmeta = null; guestUI(false); setLockClass(false); renderOverlay(); updatePill();
   }
+  function guestEnded(why) {
+    OL.ended = why || 'Host menutup room. Permainan berakhir.';
+    OL.sid++;
+    try { OL.guest && OL.guest.pc.close(); } catch (e) {}
+    try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
+    setLockClass(false); showOverlay(); renderOverlay(); updatePill();
+  }
   function guestLost() {
-    if (!OL.guest) return;
+    if (!OL.guest || OL.ended) return;
     OL.guest.status = 'lost'; setLockClass(false); toast('🌐 Koneksi ke host terputus');
     OL.view = 'lost'; showOverlay(); renderOverlay(); updatePill();
   }
@@ -9173,6 +9271,7 @@ window.sellHouse = sellHouse;
     if (m.t === 'hello') { OL.seat = m.seat; OL.code = m.code || OL.code; OL.view = 'gstatus'; guestStatus(''); document.body.classList.add('ol-guest'); renderOverlay(); updatePill(); }
     else if (m.t === 'st') guestState(m);
     else if (m.t === 'deny') toast('⛔ ' + m.why);
+    else if (m.t === 'end') guestEnded(m.why);
     else if (m.t === 'no') { setMsg(m.why, true); guestReset(); }
   }
 
@@ -9222,7 +9321,7 @@ window.sellHouse = sellHouse;
     pill.onclick = () => { OL.view = OL.role === 'host' ? 'host' : (OL.role === 'guest' ? 'gstatus' : 'menu'); showOverlay(); renderOverlay(); };
     document.body.appendChild(pill);
   }
-  const canClose = () => !(OL.role === 'guest' && !gameStartedGuest());
+  const canClose = () => !(OL.role === 'guest' && (!gameStartedGuest() || OL.ended));
   const gameStartedGuest = () => !!(OL.gmeta && OL.gmeta.st);
   function showOverlay() { ensureUI(); ov.classList.add('show'); }
   function hideOverlay() { if (ov) ov.classList.remove('show'); }
@@ -9245,6 +9344,13 @@ window.sellHouse = sellHouse;
       else if (g && g.st) txt = g.actor === OL.seat ? '🟢 Giliranmu!' : '⏳ ' + ((g.names || [])[g.actor] || 'Pemain lain');
       else txt = `🌐 ${OL.code} · menunggu host`;
     }
+    if (OL.role === 'guest' && OL.ended) txt = '🔚 Permainan berakhir';
+    let pc = '';
+    try {
+      if (OL.role === 'host' && gameStarted()) pc = (players[actorIdx()] || {}).color || '';
+      else if (OL.role === 'guest' && OL.gmeta && OL.gmeta.st) pc = ((OL.gmeta.colors || [])[OL.gmeta.actor]) || '';
+    } catch (e) {}
+    if (pc) pill.style.setProperty('--pc', pc); else pill.style.removeProperty('--pc');
     pill.style.display = on ? 'block' : 'none';
     if (pill.textContent !== txt) pill.textContent = txt;
     pill.classList.toggle('mine', !!(OL.role === 'guest' && OL.gmeta && OL.gmeta.st && OL.gmeta.actor === OL.seat));
@@ -9263,6 +9369,10 @@ window.sellHouse = sellHouse;
 
   function renderOverlay() {
     ensureUI();
+    if (OL.role === 'guest' && OL.ended) {
+      ov.innerHTML = `<div class="ol-card"><h3>🔚 Permainan Berakhir</h3><div class="ol-sub">${esc(OL.ended)}</div><div class="ol-row"><button class="btn-primary" data-a="reload">Kembali ke Menu</button></div></div>`;
+      return;
+    }
     const v = OL.view, m = msgText ? `<div class="ol-msg ${msgErr ? 'err' : ''}">${esc(msgText)}</div>` : '';
     let h = '';
     const close = canClose() ? '<button class="ol-x" data-a="close">✕</button>' : '';
@@ -9328,7 +9438,8 @@ window.sellHouse = sellHouse;
     else if (a === 'join') { OL.view = 'join'; msgText = ''; renderOverlay(); }
     else if (a === 'joinmanual') { OL.view = 'joinmanual'; msgText = ''; OL.answerCode = ''; renderOverlay(); }
     else if (a === 'copycode') copy(OL.code, b);
-    else if (a === 'closeroom') { hostCloseRoom(); OL.view = 'menu'; hideOverlay(); }
+    else if (a === 'closeroom') hostEndRoom();
+    else if (a === 'reload') location.reload();
     else if (a === 'leave') { guestReset(); OL.view = 'menu'; hideOverlay(); }
     else if (a === 'dojoin') { guestJoin(($('olJoinCode') || {}).value, ($('olJoinName') || {}).value); OL.view = 'gstatus'; }
     else if (a === 'rejoin') { const c = OL.code, nm = OL.name; guestReset(); OL.view = 'gstatus'; guestJoin(c, nm); }
@@ -9367,6 +9478,22 @@ window.sellHouse = sellHouse;
       setTimeout(() => { OL.last = {}; flush(true); hideOverlay(); }, 80);
     }, true);
   }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('#closeRoomBtn');
+    if (b && OL.role === 'host') hostEndRoom();
+  });
+  // Nama pemain online hanya boleh diatur pemain itu sendiri: host tidak bisa mengubahnya
+  { const sb = $('startBtn'), np = $('numPlayers');
+    if (sb) sb.addEventListener('click', () => {
+      if (OL.role !== 'host') return;
+      Object.keys(OL.seats).forEach((k) => {
+        const inp = document.querySelector('#playerInputs input[data-idx="' + k + '"]');
+        if (inp && OL.seats[k] && +k > 0) inp.value = OL.seats[k].name;
+      });
+    }, true);
+    if (np) np.addEventListener('change', () => { if (OL.role === 'host') applySeatNames(); });
+  }
+
   init();
 })();
 
