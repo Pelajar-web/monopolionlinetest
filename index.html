@@ -1217,6 +1217,10 @@ body.bot-lock #statusText::before{content:"🤖 ";}
 #olOverlay .ol-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 #olOverlay .ol-row button{flex:1;min-width:0;margin:0}
 #olOverlay .ol-seat{padding:7px 10px;margin-top:5px;background:rgba(255,255,255,.05);border-radius:9px;font-size:.88rem}
+.ol-kick{margin-left:8px;padding:3px 9px;border:1px solid rgba(248,113,113,.6);background:rgba(239,68,68,.15);color:#fca5a5;border-radius:8px;font-size:.72rem;font-weight:800;cursor:pointer}
+.ol-kick:active{transform:scale(.95)}
+#olOverlay .ol-seat{display:flex;align-items:center;flex-wrap:wrap}
+#olOverlay .ol-seat .ol-kick{margin-left:auto}
 #olOverlay .ol-seat b{display:inline-block;width:20px;color:var(--gold)}
 #olOverlay .ol-msg{margin-top:10px;padding:9px 11px;border-radius:9px;font-size:.82rem;background:rgba(56,189,248,.12);color:#bae6fd}
 #olOverlay .ol-msg.err{background:rgba(248,113,113,.15);color:#fecaca}
@@ -2105,6 +2109,8 @@ function tierInfo(id) {
   }
   return { start: 0, len: 24, jail: 6, park: 12 };
 }
+// Hadiah melewati titik awal tingkat dalam: tingkat Tengah (32 petak, papan 3 tingkat) = Rp150, tingkat Dalam lainnya = Rp100
+function innerGoReward(ti) { return (currentMapId === 'tri' && ti && ti.len === 32) ? 150 : 100; }
 // Hadiah melewati MULAI: papan 96 petak = Rp500, papan lain = Rp200
 function goReward() { return currentMapId === 'big96' ? 500 : 200; }
 // Bonus MULAI berjangka giliran (kartu strategi): setiap melewati MULAI selama sisa giliran
@@ -2298,7 +2304,7 @@ const STRATEGY_CARDS = [
   { id: 'immunity', name: 'Imunitas + Lempar', short: '🛡️ Imunitas', rarity: 'langka', desc: 'Perlindungan 1 giliran dari sewa. Lalu lempar dadu.' },
   { id: 'trap', name: 'Pasang Jebakan', short: '💣 Jebakan×2', rarity: 'langka', desc: 'Jebakan di tanah: korban skip 2 giliran (1x).' },
   { id: 'wheel', name: 'Roda Keberuntungan', short: '🎡 Roda', rarity: 'biasa', desc: 'Putar Roda Keberuntungan sekarang.' },
-  { id: 'avoid_bankrupt', name: 'Hindari Bangkrut', short: '💚 Hindari Bangkrut', rarity: 'legendaris', desc: 'Saat bangkrut, hidup lagi dengan Rp1000. Bisa dipakai kapan saja: jika uangmu di bawah Rp1000, jadikan Rp1000. Unique.' },
+  { id: 'avoid_bankrupt', name: 'Hindari Bangkrut', short: '💚 Hindari Bangkrut', rarity: 'legendaris', desc: 'Saat bangkrut, hidup lagi dengan Rp1000. Bisa dipakai kapan saja: jika uangmu di bawah Rp1000, jadikan Rp1000. Unique. (Tidak membatalkan utang)' },
   { id: 'cheap_house', name: 'Upgrade Murah', short: '🏠 Upgrade −50%', rarity: 'epik', desc: 'Biaya rumah/hotel −50% untuk semua pemain selamanya. Unique.' },
   { id: 'expensive_house', name: 'Upgrade Mahal', short: '🏠 Upgrade +50%', rarity: 'epik', desc: 'Biaya rumah/hotel +50% untuk semua pemain selamanya. Unique.' },
   { id: 'jail_player', name: 'Masukkan ke Penjara', short: '🔒 Penjara', rarity: 'langka', desc: 'Pilih pemain, masukkan ke Penjara.' },
@@ -2328,7 +2334,7 @@ const STRATEGY_CARDS = [
   { id: 'jail_two', name: 'Penjara Ganda', short: '🔒🔒 2 Pemain', rarity: 'epik', desc: 'Pilih 2 pemain, masukkan ke Penjara.' },
   { id: 'take_unmort', name: 'Sita Gadai', short: '🏦 Sita', rarity: 'epik', desc: 'Ambil 1 properti tanpa bangunan yang sedang digadaikan lawan dengan membayar 150% dari nilai tebus gadai kepada bank.' },
   { id: 'money_1000', name: 'Harta Karun', short: '💎 +Rp1000', rarity: 'legendaris', desc: 'Terima Rp1000 dari bank.' },
-  { id: 'steal_property', name: 'Rampas Tanah', short: '🏰 Ambil Tanah', rarity: 'legendaris', desc: 'Pilih & ambil 1 properti lawan apa pun (tidak ada rumah/hotel).' },
+  { id: 'steal_property', name: 'Rampas Tanah', short: '🏰 Ambil Tanah', rarity: 'legendaris', desc: 'Bayar 25% dari harga, rebut 1 properti lawan apa pun (tidak ada rumah/hotel).' },
   // ===== 50 KARTU STRATEGI BARU =====
   { id: 'money_30', name: 'Uang Tipis', short: '💵 +Rp50', rarity: 'biasa', desc: 'Terima Rp50 dari bank.' },
   { id: 'energy_1', name: 'Isi Energi Kecil', short: '⚡ +1', rarity: 'biasa', desc: 'Dapat +1 energi strategi.' },
@@ -2344,7 +2350,7 @@ const STRATEGY_CARDS = [
   { id: 'discount_25', name: 'Diskon Kecil', short: '🏷️ Sewa −25%', rarity: 'langka', desc: 'Sewa −25% di tanah dipilih (1x).' },
   { id: 'parking_self', name: 'Ke Parkir Sendiri', short: '🅿️ Ke Parkir', rarity: 'langka', desc: 'Pindahkan diri ke Parkir Gratis.' },
   { id: 'start_self', name: 'Ke MULAI Sendiri', short: '▶️ Ke MULAI', rarity: 'langka', desc: 'Pindahkan diri ke MULAI (+hadiah MULAI).' },
-  { id: 'wipe_3houses', name: 'Hancur 3 Rumah', short: '💥 −3 Rumah', rarity: 'epik', desc: 'Hancurkan 3 rumah di monopoli lawan.' },
+  { id: 'wipe_3houses', name: 'Hancur 2 Rumah', short: '💥 −2 Rumah', rarity: 'epik', desc: 'Hancurkan 2 rumah di monopoli lawan.' },
   { id: 'force_mortgage', name: 'Paksa Gadai', short: '🏦 Paksa Gadai', rarity: 'epik', desc: 'Paksa 1 properti tanpa bangunan lawan acak digadai (jika bisa).' },
   { id: 'steal_all_stocks', name: 'Rampas Saham Terkaya', short: '📈 Ambil Saham Terkaya', rarity: 'langka', desc: 'Ambil 1 lembar saham acak dari pemain terkaya.' },
   // ===== 50 KARTU STRATEGI TAMBAHAN (batch 2) =====
@@ -2385,8 +2391,8 @@ const STRATEGY_CARDS = [
   { id: 'b3_from_all_35', name: 'Patungan Sedang', short: '🤝 +Rp35×', rarity: 'langka', desc: 'Terima Rp35 dari setiap pemain lain.' },
   { id: 'b3_steal_all_10pct', name: 'Pungutan 10%', short: '🥷 10% Semua', rarity: 'langka', desc: 'Ambil 10% uang setiap lawan (maks Rp100 per pemain).' },
   { id: 'b3_steal_all_20pct', name: 'Pungutan 20%', short: '🥷 20% Semua', rarity: 'epik', desc: 'Ambil 20% uang setiap lawan (maks Rp200 per pemain).' },
-  { id: 'b3_free_5houses', name: '5 Rumah Gratis', short: '🏠×5 Gratis', rarity: 'legendaris', desc: 'Bangun 5 rumah gratis di monopoli.' },
-  { id: 'b3_wipe_5houses', name: 'Gempa Bumi', short: '🌋 Hancur 5 Rumah', rarity: 'legendaris', desc: 'Hancurkan hingga 5 rumah di monopoli lawan.' },
+  { id: 'b3_free_5houses', name: '3 Rumah Gratis', short: '🏠×3 Gratis', rarity: 'legendaris', desc: 'Bangun 3 rumah gratis di monopoli.' },
+  { id: 'b3_wipe_5houses', name: 'Gempa Bumi', short: '🌋 Hancur 3 Rumah', rarity: 'legendaris', desc: 'Hancurkan hingga 3 rumah di monopoli lawan.' },
   { id: 'b3_unmort_all', name: 'Tebus Massal', short: '🔓 Tebus Semua −50%', rarity: 'epik', desc: 'Tebus semua tanahmu yang digadai dengan diskon 50% (sebisa uangmu).' },
   { id: 'b3_div_double', name: 'Dividen Ganda', short: '📈 Dividen ×2', rarity: 'langka', desc: 'Terima dividen saham 2× lipat sekarang.' },
   { id: 'b3_div_triple', name: 'Dividen Triple', short: '📈 Dividen ×3', rarity: 'epik', desc: 'Terima dividen saham 3× lipat sekarang.' },
@@ -2460,7 +2466,7 @@ let pendingStrat = null; // while choosing target
 const MAP_DESCS = {
   classic: 'Papan standar satu tingkat dengan 40 petak. Cocok untuk permainan singkat dan klasik.',
   dual: 'Dua tingkat tampil bersamaan: 40 petak luar + 24 petak dalam. Stasiun menjadi jalur pindah antar tingkat.',
-  tri: 'Tiga tingkat (40 + 32 + 24 petak) yang dihubungkan stasiun bersama. Permainan paling panjang dan strategis.',
+  tri: 'Tiga tingkat (40 + 32 + 24 petak) yang dihubungkan stasiun bersama. Hadiah melewati start tingkat tengah Rp150. Permainan paling panjang dan strategis.',
   big96: 'Papan raksasa berbentuk orbit: tiga lingkaran berurutan (40 + 32 + 24 petak) dengan total 96 petak. Hadiah melewati MULAI Rp500.',
   acak: 'Mirip papan klasik 40 petak, tapi posisi tanah diacak: tanah dengan warna yang sama tidak berdekatan lagi (minimal berjarak 4 petak), jadi sulit melengkapi satu grup warna.',
   roulette: 'Papan 40 petak yang lebih cepat: setiap grup warna hanya terdiri dari dua negara dan terdapat satu grup warna hanya terdiri satu negara (harus lelang), jadi lebih mudah melengkapi satu grup dan membangun rumah. Permainan berjalan lebih singkat.'
@@ -3776,9 +3782,10 @@ function moveInnerPlayer(steps) {
     const ti = tierInfo(p.pos);
     p.pos = ti.start + ((p.pos - ti.start + 1) % ti.len);
     if (p.pos === ti.start) {
-      p.money += 100;
-      moneyAnim(currentPlayer, 100);
-      log(`${p.name} melewati ${INNER_SPACES[ti.start].name} +Rp100 (Tingkat ${tierName(p)})`, 'money');
+      const innerGo = innerGoReward(ti);
+      p.money += innerGo;
+      moneyAnim(currentPlayer, innerGo);
+      log(`${p.name} melewati ${INNER_SPACES[ti.start].name} +Rp${innerGo} (Tingkat ${tierName(p)})`, 'money');
       updatePlayersPanel();
     }
     updateTokens();
@@ -3835,13 +3842,8 @@ function handleInnerProperty() {
         {
           text: '✅ Beli', class: 'btn-success', onClick: () => {
             if (p.money < sp.price) {
-              showToast('Uang tidak cukup! Pilih Lelang.');
-              showBoardPropPopup(
-                `Beli ${sp.name}? (Dalam)`,
-                `Harga: Rp${sp.price} — Uang tidak cukup`,
-                [{ text: '🔨 Lelang', class: 'btn-gold', onClick: () => startAuction(p.pos, 'inner') }]
-              );
-              return;
+              showToast('Uang tidak cukup untuk membeli! Pilih Lelang.');
+              return POPUP_STAY;
             }
             p.money -= sp.price;
             moneyAnim(currentPlayer, -sp.price);
@@ -5782,7 +5784,7 @@ function openStratStealLandPicker(handIdx, card) {
         const hLabel = h === 5 ? ' 🏨' : (h > 0 ? ` 🏠${h}` : '');
         const mLabel = mortgaged[id] ? ' (Gadai)' : '';
         cands.push({
-          id, ownerIdx: i, name: sp.name, price: sp.price || 0,
+          id, ownerIdx: i, name: sp.name, price: sp.price || 0, cost: Math.floor((sp.price || 0) * 0.25),
           ownerName: op.name, ownerAvatar: op.avatar,
           extra: hLabel + mLabel
         });
@@ -5795,8 +5797,8 @@ function openStratStealLandPicker(handIdx, card) {
   }
   cands.sort((a, b) => a.price - b.price);
   body.innerHTML = cands.map(c =>
-    `<button class="btn-secondary btn-sm" style="width:100%;margin-bottom:4px;text-align:left" data-land="${c.id}" data-owner="${c.ownerIdx}">
-      ${c.name}${c.extra} — Rp${c.price} · ${c.ownerAvatar} ${c.ownerName}
+    `<button class="btn-secondary btn-sm" style="width:100%;margin-bottom:4px;text-align:left${players[currentPlayer].money < c.cost ? ';opacity:.45' : ''}" data-land="${c.id}" data-owner="${c.ownerIdx}" ${players[currentPlayer].money < c.cost ? 'disabled' : ''}>
+      ${c.name}${c.extra} — Rp${c.price} · bayar Rp${c.cost} · ${c.ownerAvatar} ${c.ownerName}
     </button>`
   ).join('');
   document.getElementById('stratModalConfirm').style.display = 'none';
@@ -5895,6 +5897,11 @@ function applyStratCardCore(cardId, opts) {
     showToast('💚 Hindari Bangkrut! Uang jadi Rp1000');
     updatePlayersPanel();
     updateStratUI();
+    // Utang tidak dibatalkan: jika sedang berutang, lanjutkan penyelesaian utang
+    if (pendingDebt) {
+      if (p.money >= pendingDebt.amount) settleDebtIfPossible();
+      else showDebtActionButtons();
+    }
     return;
   }
   if (cardId === 'cheap_house') {
@@ -6124,6 +6131,14 @@ function applyStratCardCore(cardId, opts) {
       return;
     }
     const owner = players[ownerIdx];
+    const stealCost = Math.floor((sp.price || 0) * 0.25);
+    if (p.money < stealCost) {
+      showToast(`Uang tidak cukup! Butuh Rp${stealCost} (25% harga ${sp.name})`);
+      p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI();
+      return;
+    }
+    p.money -= stealCost; owner.money += stealCost;
+    moneyAnim(currentPlayer, -stealCost); moneyAnim(ownerIdx, stealCost);
     const idx = owner.props.indexOf(landId);
     if (idx >= 0) owner.props.splice(idx, 1);
     owned[landId] = currentPlayer;
@@ -6132,7 +6147,7 @@ function applyStratCardCore(cardId, opts) {
     const h = houses[landId] || 0;
     const mort = mortgaged[landId] ? ' (masih digadai)' : '';
     const hInfo = h === 5 ? ' +Hotel' : (h > 0 ? ` +${h} rumah` : '');
-    log(`${p.name} MERAMPAS ${sp.name}${hInfo}${mort} dari ${owner.name}!`, 'important');
+    log(`${p.name} MERAMPAS ${sp.name}${hInfo}${mort} dari ${owner.name} (bayar Rp${stealCost})!`, 'important');
     updatePlayersPanel();
     updateOwnerBars();
     return;
@@ -6240,7 +6255,7 @@ function applyStratCardCore(cardId, opts) {
     const eg=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].forEach(g=>{const ids=SPACES.filter(s=>s.group===g).map(s=>s.id);if(ids.every(id=>owned[id]===i)&&ids.some(id=>(houses[id]||0)>0))eg.push({g,i});});});
     if(!eg.length){showToast('Tidak ada rumah lawan');return;}
     const pick=eg[Math.floor(Math.random()*eg.length)];const ids=SPACES.filter(s=>s.group===pick.g).map(s=>s.id);let rem=0;
-    for(let k=0;k<3;k++){const el=ids.filter(id=>(houses[id]||0)>0);if(!el.length)break;const maxH=Math.max(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===maxH);const id=c[Math.floor(Math.random()*c.length)];houses[id]--;if(houses[id]<=0)delete houses[id];rem++;}
+    for(let k=0;k<2;k++){const el=ids.filter(id=>(houses[id]||0)>0);if(!el.length)break;const maxH=Math.max(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===maxH);const id=c[Math.floor(Math.random()*c.length)];houses[id]--;if(houses[id]<=0)delete houses[id];rem++;}
     log(`${p.name} hancur ${rem} rumah`);updateOwnerBars();return;
   }
   if (cardId==='jail_three'){
@@ -6675,7 +6690,7 @@ function applyStratCardCore(cardId, opts) {
         if (!groups.length) { refund('Butuh monopoli'); return; }
         const ids = SPACES.filter(s => s.group === pickRand(groups)).map(s => s.id);
         let added = 0;
-        for (let k = 0; k < 5; k++) {
+        for (let k = 0; k < 3; k++) {
           const el = ids.filter(id => !mortgaged[id] && (houses[id] || 0) < 5);
           if (!el.length) break;
           const minH = Math.min(...el.map(id => houses[id] || 0));
@@ -6697,7 +6712,7 @@ function applyStratCardCore(cardId, opts) {
         const pick = pickRand(eg);
         const ids = SPACES.filter(s => s.group === pick.g).map(s => s.id);
         let rem = 0;
-        for (let k = 0; k < 5; k++) {
+        for (let k = 0; k < 3; k++) {
           const el = ids.filter(id => (houses[id] || 0) > 0);
           if (!el.length) break;
           const maxH = Math.max(...el.map(id => houses[id] || 0));
@@ -7783,25 +7798,27 @@ document.getElementById('debtUseAvoid').onclick = () => {
     showToast('Tidak punya kartu Hindari Bangkrut!');
     return;
   }
+  if (p.money >= 1000) {
+    showToast('💚 Uangmu sudah Rp1000 atau lebih — kartu tidak menambah uang. Gadai/jual/dagang untuk cari uang.');
+    return;
+  }
   // Consume card without energy (special crisis use)
   if (idx >= 0) p.hand.splice(idx, 1);
   p.hasAvoidCard = false;
-  // Creditor gets whatever money player has
-  if (pendingDebt && pendingDebt.toPlayerIdx !== null && p.money > 0) {
-    const pay = p.money;
-    players[pendingDebt.toPlayerIdx].money += pay;
-    moneyAnim(pendingDebt.toPlayerIdx, pay);
-    p.money = 0;
-  }
+  // Utang TIDAK dibatalkan: uang hanya dijadikan Rp1000, utang tetap harus dibayar
+  const gain = 1000 - p.money;
   p.money = 1000;
-  moneyAnim(currentPlayer, 1000);
-  pendingDebt = null;
+  moneyAnim(currentPlayer, gain);
   document.getElementById('debtModal').classList.remove('show');
-  log(`${p.name} memakai HINDARI BANGKRUT — hidup kembali dengan Rp1000!`, 'important');
+  log(`${p.name} memakai HINDARI BANGKRUT — uang dijadikan Rp1000 (+Rp${gain}), utang tetap harus dibayar`, 'important');
   updatePlayersPanel();
   updateStratUI();
-  showToast('💚 Hindari Bangkrut! Modal Rp1000');
-  endTurnOrDouble();
+  showToast('💚 Hindari Bangkrut! Uang jadi Rp1000 (utang tidak dibatalkan)');
+  if (pendingDebt && p.money >= pendingDebt.amount) {
+    settleDebtIfPossible();
+  } else {
+    showDebtActionButtons();
+  }
 };
 
 function bankrupt(playerIdx, toPlayerIdx) {
@@ -8394,7 +8411,8 @@ window.sellHouse = sellHouse;
       case 'cheap_house': case 'free_house': case 'free_2houses': case 'b3_free_5houses': return mySets > 0;
       case 'expensive_house': return mySets === 0 && oppH >= 4;
       case 'wipe_1house': return oppH >= 1;
-      case 'wipe_3houses': case 'b3_wipe_5houses': return oppH >= 3;
+      case 'wipe_3houses': return oppH >= 2;
+      case 'b3_wipe_5houses': return oppH >= 3;
       case 'unmort_discount': case 'b4_unmort_half': case 'b3_unmort_all': return hasMort && p.money >= 250;
       case 'take_unmort': return p.money >= 300 && opp.some(q => (q.props || []).some(i => mortgaged[i] && !(houses[i] || 0)));
       case 'force_mortgage': return opp.some(q => (q.props || []).length > 0);
@@ -8418,6 +8436,7 @@ window.sellHouse = sellHouse;
       opp.forEach(({ q, i }) => (q.props || []).forEach(pid => {
         const sp = SPACES[pid];
         if (!sp || (houses[pid] || 0) > 0 || !['property', 'rail', 'util'].includes(sp.type)) return;
+        if (p.money - Math.floor((sp.price || 0) * 0.25) < 150) return;   // jaga uang cadangan
         const mem = sp.group ? SPACES.filter(s => s.group === sp.group) : [], mine = mem.filter(s => owned[s.id] === currentPlayer).length;
         const sc = (sp.price || 0) + (mem.length > 1 && mine === mem.length - 1 ? 1000 : mine > 0 ? 150 : 0);
         if (!best || sc > best.sc) best = { sc, id: pid, owner: i };
@@ -8716,6 +8735,7 @@ window.sellHouse = sellHouse;
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const LOCAL_IDS = new Set(['zoomBar']);          // elemen yang tidak disinkronkan (lokal per perangkat)
   const CHUNK = 7000;   // kecil: serialisasi json PeerJS bisa menggandakan ukuran (escape tanda kutip)
+  const KICK_BAN_MS = 5 * 60 * 1000;               // pemain yang dikeluarkan host: tidak bisa gabung lagi selama 5 menit
   const HOLD_BOT_MS = 10000;                       // tamu putus > 10 dtk -> diambil alih Bot
 
   const rnd = (n, set = CODE_CHARS) => Array.from({ length: n }, () => set[Math.floor(Math.random() * set.length)]).join('');
@@ -8746,6 +8766,26 @@ window.sellHouse = sellHouse;
       if (auction) { const i = auction.participants[auction.currentIdx]; if (i != null) return i; }
       return currentPlayer;
     } catch (e) { return -1; }
+  }
+  // ====================== keluarkan pemain (kick) + blokir 5 menit ======================
+  function loadBans() { try { const o = JSON.parse(localStorage.getItem('mn_bans') || '{}'), now = Date.now(); Object.keys(o).forEach((k) => { if (!(o[k] > now)) delete o[k]; }); return o; } catch (e) { return OL.bansMem || {}; } }
+  function saveBans(o) { OL.bansMem = o; try { localStorage.setItem('mn_bans', JSON.stringify(o)); } catch (e) {} }
+  function banLeftMs(cid) { if (!cid) return 0; const o = loadBans(); return Math.max(0, (o[cid] || 0) - Date.now()); }
+  function fmtLeft(ms) { const t = Math.ceil(ms / 1000), m = Math.floor(t / 60), d = t % 60; return m > 0 ? `${m} menit ${d} detik` : `${d} detik`; }
+  function hostKick(seat) {
+    if (OL.role !== 'host' || gameStarted()) { toast('Pemain hanya bisa dikeluarkan di menu utama (sebelum game mulai).'); return; }
+    const st = OL.seats[seat]; if (!st || seat < 1) return;
+    if (!confirm(`Keluarkan ${st.name} dari room?\nIa tidak bisa bergabung lagi selama 5 menit.`)) return;
+    const o = loadBans(); o[st.cid] = Date.now() + KICK_BAN_MS; saveBans(o);
+    const peer = st.peer, name = st.name;
+    clearTimeout(st.timer); delete OL.seats[seat];
+    if (peer) {
+      OL.peers.delete(peer);
+      sendDC(peer.dc, { t: 'kicked', why: 'Kamu dikeluarkan oleh host. Kamu baru bisa bergabung lagi dalam 5 menit.' });
+      setTimeout(() => peerClose(peer), 600);
+    }
+    applySeatNames(true); toast(`🚫 ${name} dikeluarkan dari room`);
+    renderOverlay(); updatePill();
   }
   function remoteSeatConnected(seat) { const s = OL.seats[seat]; return !!(s && s.connected); }
 
@@ -8920,6 +8960,8 @@ window.sellHouse = sellHouse;
   function hostHi(peer, m) {
     const name = String(m.name || 'Tamu').slice(0, 16), cid = String(m.cid || '').slice(0, 24);
     const started = gameStarted();
+    const left = banLeftMs(cid);
+    if (left > 0) { sendDC(peer.dc, { t: 'no', why: `Kamu dikeluarkan oleh host. Coba lagi dalam ${fmtLeft(left)}.` }); setTimeout(() => peerClose(peer), 500); return; }
     let seat = Object.keys(OL.seats).map(Number).find((s) => OL.seats[s].cid === cid);
     if (seat !== undefined) {
       const st = OL.seats[seat];
@@ -8969,6 +9011,10 @@ window.sellHouse = sellHouse;
       if (OL.role === 'host' && (i === 0 || st)) {
         if (!tag) { tag = document.createElement('span'); tag.className = 'ol-tag'; row.insertBefore(tag, row.firstChild); }
         tag.textContent = i === 0 ? '👑 Host' : (st.connected ? '🌐 Online' : '🌐 Terputus');
+        if (i > 0 && !gameStarted()) {
+          const kb = document.createElement('button'); kb.type = 'button'; kb.className = 'ol-kick'; kb.dataset.kick = i; kb.textContent = '🚫 Keluarkan'; kb.title = 'Keluarkan pemain dari room (diblokir 5 menit)';
+          tag.appendChild(kb);
+        }
       } else if (tag) tag.remove();
       if (st && i > 0) {
         inp.value = st.name;
@@ -9270,6 +9316,7 @@ window.sellHouse = sellHouse;
     else if (m.t === 'deny') toast('⛔ ' + m.why);
     else if (m.t === 'end') guestEnded(m.why);
     else if (m.t === 'no') { setMsg(m.why, true); guestReset(); }
+    else if (m.t === 'kicked') { const why = m.why || 'Kamu dikeluarkan oleh host.'; guestReset(); OL.view = 'menu'; showOverlay(); setMsg(why, true); toast('🚫 ' + why); }
   }
 
   // ====================== tamu: kirim klik / isian ======================
@@ -9359,7 +9406,8 @@ window.sellHouse = sellHouse;
     for (let i = 0; i < n; i++) {
       const s = OL.seats[i];
       const who = i === 0 ? '👑 Kamu (Host)' : (s ? (s.connected ? '🟢 ' : '🔴 ') + esc(s.name) : '⚪ Kosong <span style="opacity:.6">(Bot / pemain lokal)</span>');
-      h += `<div class="ol-seat"><b>${i + 1}</b> ${who}</div>`;
+      const kick = (OL.role === 'host' && i > 0 && s && !gameStarted()) ? `<button type="button" class="ol-kick" data-kick="${i}">🚫 Keluarkan</button>` : '';
+      h += `<div class="ol-seat"><b>${i + 1}</b> ${who}${kick}</div>`;
     }
     return h;
   }
@@ -9424,6 +9472,10 @@ window.sellHouse = sellHouse;
     return h;
   }
 
+  document.addEventListener('click', (e) => {
+    const kb = e.target.closest && e.target.closest('[data-kick]'); if (!kb) return;
+    e.preventDefault(); hostKick(+kb.dataset.kick);
+  });
   // delegasi aksi overlay
   document.addEventListener('click', async (e) => {
     const b = e.target.closest && e.target.closest('#olOverlay [data-a], #olOpenBtn, #olPill'); if (!b) return;
