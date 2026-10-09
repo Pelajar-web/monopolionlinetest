@@ -1276,6 +1276,8 @@ body.ol-host.ol-lock #cardModal,body.ol-host.ol-lock #wheelModal,body.ol-host.ol
 body.ol-host.ol-lock #stratDrawModal,body.ol-host.ol-lock #auctionModal,body.ol-host.ol-lock #tradeAcceptModal,body.ol-host.ol-lock #stratModal,body.ol-host.ol-lock #stratHandModal,
 body.ol-host.ol-lock #propsModal,body.ol-host.ol-lock #stocksModal,body.ol-host.ol-lock #tradeModal{pointer-events:none}
 body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
+/* Popup aksi (Pilih Langkah/Dadu, beli/lelang, dll) punya pointer-events:auto sendiri, jadi harus dikunci eksplisit */
+body.ol-host.ol-lock .board-popup,body.ol-host.ol-lock .board-popup *,body.ol-host.ol-lock .pick-mode-banner,body.ol-host.ol-lock .pick-mode-banner *{pointer-events:none !important}
 
 /* ===== 💾 Lanjutkan Permainan Terakhir ===== */
 #resumeBox{display:none;gap:8px;margin:6px 0 8px;align-items:stretch}
@@ -2431,7 +2433,8 @@ const STRATEGY_CARDS = [
   { id: 'b3_jail_richest', name: 'Penjarakan Terkaya', short: '🔒 Penjara Terkaya', rarity: 'langka', desc: 'Pemain terkaya langsung masuk Penjara.' },
   { id: 'b3_nearest_rail', name: 'Stasiun Terdekat', short: '🚉 Stasiun Depan', rarity: 'epik', desc: 'Maju ke stasiun terdekat di depan (Tingkat Luar).' },
   { id: 'b3_nearest_free', name: 'Tanah Kosong Terdekat', short: '🗺️ Tanah Kosong', rarity: 'epik', desc: 'Maju ke properti tanpa pemilik terdekat (Tingkat Luar).' },
-  { id: 'b3_rich_tax', name: 'Pajak Orang Kaya', short: '⚖️ Pajak Kaya', rarity: 'biasa', desc: 'Setiap pemain yang uangnya lebih banyak darimu membayar Rp80.' },
+  { id: 'b3_rich_tax', name: 'Pajak Orang Kaya', short: '⚖️ Pajak Kaya', rarity: 'biasa', desc: 'Setiap pemain yang uangnya lebih banyak darimu membayar Rp40.' },
+  { id: 'b5_rich_tax_epik', name: 'Pajak Konglomerat', short: '⚖️ Pajak Konglomerat', rarity: 'epik', desc: 'Setiap pemain yang uangnya lebih banyak darimu membayar Rp120.' },
   // ===== 50 KARTU STRATEGI BARU (batch 4) =====
   { id: 'b4_energy_hand', name: 'Energi Tangan', short: '⚡ +Kartu', rarity: 'biasa', desc: 'Dapat energi sebanyak kartu di tanganmu (maks +4).' },
   { id: 'b4_steal_choose_40', name: 'Rampas Pilih 40', short: '🥷 Pilih −Rp40', rarity: 'biasa', desc: 'Pilih 1 pemain, ambil Rp40 darinya.' },
@@ -4642,7 +4645,7 @@ const AUCTION_MONEY_CARDS = new Set(['money_30','money_200','money_400','money_1
   'steal_choose_100','steal_choose_200','steal_choose_25pct','steal_choose_500','b4_steal_choose_40','b4_steal_choose_10pct','b4_steal_choose_20pct',
   'rent_to_me','stock_div_half','b3_div_double','b3_div_triple','b3_catch_up','b3_lottery_big','b4_lottery_flash',
   'b4_interest','b4_props_bonus','b4_rail_bonus','b4_energy_to_money','b3_steal_all_10pct','b3_steal_all_20pct','b3_park_3q','b4_park_fifth',
-  'b3_rich_tax','b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','steal_all_stocks','stock_steal_1']);
+  'b3_rich_tax','b5_rich_tax_epik','b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','steal_all_stocks','stock_steal_1']);
 function realTurnIdx() {
   return (auction && auction.realPlayer != null) ? auction.realPlayer : currentPlayer;
 }
@@ -6851,13 +6854,15 @@ function applyStratCardCore(cardId, opts) {
         refund('Semua tanah sudah dimiliki'); return;
       }
       // ---- pemerataan ----
-      case 'b3_rich_tax': {
+      case 'b3_rich_tax':
+      case 'b5_rich_tax_epik': {
+        const richAmt = cardId === 'b5_rich_tax_epik' ? 120 : 40;
         const payers = foes().filter(({ op }) => op.money > p.money);
         if (!payers.length) { refund('Tidak ada yang lebih kaya darimu'); return; }
         let t = 0;
-        payers.forEach(({ op, i }) => { const g = Math.min(80, op.money); op.money -= g; t += g; moneyAnim(i, -g); });
+        payers.forEach(({ op, i }) => { const g = Math.min(richAmt, op.money); op.money -= g; t += g; moneyAnim(i, -g); });
         p.money += t; moneyAnim(currentPlayer, t);
-        log(`${p.name} memungut Pajak Orang Kaya Rp${t}`, 'money'); updatePlayersPanel(); return;
+        log(`${p.name} memungut ${cardId === 'b5_rich_tax_epik' ? 'Pajak Konglomerat' : 'Pajak Orang Kaya'} Rp${t}`, 'money'); updatePlayersPanel(); return;
       }
       // ===== BATCH 4 =====
       case 'b4_money_45': gain(45); return;
@@ -8349,7 +8354,7 @@ window.sellHouse = sellHouse;
   const SAFE_CARDS = new Set(['money_30','money_200','money_400','money_1000','from_all_5','b3_from_all_35','b3_from_all_150','b4_from_all_75',
     'steal_20','steal_50','steal_200','steal_500','steal_from_poorest','steal_random_25','steal_half_richest','steal_richest_20pct',
     'b3_lottery_big','b4_lottery_flash','b3_catch_up','b4_interest','b4_props_bonus','b4_rail_bonus','b3_steal_all_10pct','b3_steal_all_20pct',
-    'b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','stock_div_half','b3_div_double','b3_div_triple','b3_park_3q','b4_park_fifth','b3_rich_tax']);
+    'b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','stock_div_half','b3_div_double','b3_div_triple','b3_park_3q','b4_park_fifth','b3_rich_tax','b5_rich_tax_epik']);
   const ENERGY_CARDS = new Set(['energy_1','energy_3','energy_5']);
 
   function botManage(p, allowCards, atEnd) {
@@ -9146,6 +9151,18 @@ window.sellHouse = sellHouse;
     updatePill();
     schedule();
   }
+  // Penjaga klik host: selama giliran/aksi milik pemain tamu yang terhubung, klik asli (isTrusted) di layar host diblok.
+  // Klik tamu yang diteruskan lewat hostMsg bersifat sintetis (isTrusted=false) sehingga tetap diproses.
+  document.addEventListener('click', (e) => {
+    if (OL.role !== 'host' || !OL.peers.size || !e.isTrusted) return;
+    if (!gameStarted() || !remoteSeatConnected(actorIdx())) return;
+    const t = e.target; if (!t || !t.closest) return;
+    if (t.closest('[data-ol]') || t.closest('#zoomBar, #focusBar, #olChat, #olPill')) return;
+    if (isTextLike(t)) return;
+    if (!(t.closest('#game') || t.closest('.modal-overlay') || t.closest('body > [id]'))) return;
+    e.stopPropagation(); e.preventDefault();
+    toast('⏳ Bukan giliranmu');
+  }, true);
   function startHostLoops() {
     const mo = new MutationObserver((recs) => {
       if (OL.role !== 'host' || !OL.peers.size) return;
