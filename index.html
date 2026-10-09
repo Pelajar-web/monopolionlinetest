@@ -1236,6 +1236,27 @@ body.ol-guest #setup{display:none !important}
 body.ol-host #mainMenuBtn, body.ol-guest #mainMenuBtn{display:none !important}
 #playerInputs input.ol-locked-name{opacity:.8;cursor:not-allowed;background:rgba(255,255,255,.05)}
 #olPill{border-left:6px solid var(--pc,rgba(56,189,248,.5))}
+/* ===== 💬 Chat online ===== */
+#olChat{position:fixed;top:44px;right:8px;z-index:545;display:none;font-family:var(--font)}
+#olChat #olChatBtn{position:relative;overflow:visible;display:block;margin-left:auto;width:40px;height:40px;padding:0;border-radius:50%;border:1px solid rgba(56,189,248,.5);background:rgba(15,23,42,.92);color:#fff;font-size:1.15rem;line-height:1;cursor:pointer}
+#olChat #olChatBadge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#ef4444;color:#fff;font:800 .68rem/18px var(--font);text-align:center;display:none}
+#olChat #olChatPeek{position:absolute;top:5px;right:48px;max-width:62vw;padding:6px 10px;border-radius:12px;background:rgba(15,23,42,.96);border:1px solid rgba(56,189,248,.4);color:#e2e8f0;font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none;cursor:pointer}
+#olChat #olChatPanel{display:none;position:absolute;top:46px;right:0;width:min(340px,92vw);height:min(52vh,380px);background:#0f172a;border:1px solid rgba(255,255,255,.14);border-radius:16px;box-shadow:var(--shadow-lg);flex-direction:column;overflow:hidden}
+#olChat.open #olChatPanel{display:flex}
+#olChat.open #olChatPeek{display:none !important}
+#olChat .ocp-h{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08);font-size:.9rem;color:#e2e8f0}
+#olChat #olChatX{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.08);color:#fff;font-size:.85rem;padding:0}
+#olChat #olChatList{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 12px}
+#olChat .ocm{margin:0 0 6px;font-size:.84rem;line-height:1.35;word-break:break-word;color:#e2e8f0}
+#olChat .ocm .n{font-weight:800;margin-right:6px}
+#olChat .ocm.mine{background:rgba(56,189,248,.1);border-radius:8px;padding:3px 7px}
+#olChat .ocm.sys{text-align:center;opacity:.6;font-size:.74rem}
+#olChat .ocm-empty{text-align:center;opacity:.5;font-size:.8rem;padding-top:18px;color:#e2e8f0}
+#olChat .ocp-q{display:flex;gap:4px;padding:6px 10px 0}
+#olChat .ocp-q button{flex:1;padding:5px 0;background:rgba(255,255,255,.07);color:#fff;font-size:1rem;border-radius:9px}
+#olChat .ocp-in{display:flex;gap:6px;padding:8px 10px 10px}
+#olChat #olChatInput{flex:1;min-width:0;padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0b1220;color:#fff;font:inherit;font-size:16px}
+#olChat #olChatSend{padding:0 14px;background:#0284c7;color:#fff;border-radius:10px}
 body.ol-guest #viewStratBtn,body.ol-guest .extra-btns button,body.ol-guest #mainMenuBtn{position:relative}
 body.ol-lock .action-area,body.ol-lock .board-popup-overlay,body.ol-lock .extra-btns button,body.ol-lock #mainMenuBtn,body.ol-lock #viewStratBtn,
 body.ol-lock #cardModal,body.ol-lock #wheelModal,body.ol-lock #debtModal,body.ol-lock #bankruptModal,body.ol-lock #rouletteModal,
@@ -8943,6 +8964,11 @@ window.sellHouse = sellHouse;
   function hostMsg(peer, m) {
     if (m.t === 'hi') return hostHi(peer, m);
     if (peer.seat == null || peer.seat < 0) return;
+    if (m.t === 'chat') {
+      const now = Date.now(); if (now - (peer.chatAt || 0) < 350) return; peer.chatAt = now;
+      const text = cleanChat(m.x); if (text) hostChat(peer.seat, text);
+      return;
+    }
     if (m.t === 'click' || m.t === 'val') {
       const el = resolvePath(m.p);
       if (!permit(peer, el)) { sendDC(peer.dc, { t: 'deny', why: gameStarted() ? 'Bukan giliranmu' : 'Game belum dimulai' }); return; }
@@ -8979,6 +9005,8 @@ window.sellHouse = sellHouse;
     applySeatNames();
     sendDC(peer.dc, { t: 'hello', seat, code: OL.code });
     sendFull(peer);
+    sendDC(peer.dc, { t: 'chatlog', l: OL.chatLog.slice(-CHAT_KEEP) });
+    hostSys(`${peer.name} bergabung`);
     toast(`🌐 ${peer.name} bergabung (pemain ${seat + 1})`);
     renderOverlay(); updatePill();
   }
@@ -8989,6 +9017,7 @@ window.sellHouse = sellHouse;
     const seat = peer.seat; if (seat == null) return;
     const st = OL.seats[seat]; if (!st || st.peer !== peer) return;
     st.connected = false;
+    hostSys(`${peer.name} ${gameStarted() ? 'terputus' : 'keluar'}`);
     if (!gameStarted()) { delete OL.seats[seat]; applySeatNames(true); toast(`🌐 ${peer.name} keluar dari room`); }
     else {
       toast(`🌐 ${peer.name} terputus…`);
@@ -9157,7 +9186,7 @@ window.sellHouse = sellHouse;
     try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
     OL.peers.forEach((p) => peerClose(p));
     Object.values(OL.pend).forEach((p) => { try { p.pc.close(); } catch (e) {} });
-    OL.peers.clear(); OL.pend = {}; OL.seats = {}; OL.role = null; OL.code = ''; OL.last = {}; OL.lastMeta = ''; OL.lastDyn = '';
+    OL.peers.clear(); OL.pend = {}; OL.seats = {}; OL.role = null; OL.code = ''; OL.last = {}; OL.lastMeta = ''; OL.lastDyn = ''; chatReset();
     setLockClass(false); document.body.classList.remove('ol-host'); applySeatNames(); renderOverlay(); updatePill();
   }
 
@@ -9201,7 +9230,7 @@ window.sellHouse = sellHouse;
     OL.sid++;
     try { OL.guest && OL.guest.pc.close(); } catch (e) {}
     try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
-    OL.guest = null; OL.role = null; OL.seat = -1; OL.gmeta = null; guestUI(false); setLockClass(false); renderOverlay(); updatePill();
+    OL.guest = null; OL.role = null; OL.seat = -1; OL.gmeta = null; guestUI(false); setLockClass(false); chatReset(); renderOverlay(); updatePill();
   }
   function guestEnded(why) {
     OL.ended = why || 'Host menutup room. Permainan berakhir.';
@@ -9313,6 +9342,8 @@ window.sellHouse = sellHouse;
   function guestMsg(m) {
     if (m.t === 'hello') { OL.seat = m.seat; OL.code = m.code || OL.code; OL.view = 'gstatus'; guestStatus(''); document.body.classList.add('ol-guest'); renderOverlay(); updatePill(); }
     else if (m.t === 'st') guestState(m);
+    else if (m.t === 'chat') pushChat(m, true);
+    else if (m.t === 'chatlog') mergeChatLog(m.l);
     else if (m.t === 'deny') toast('⛔ ' + m.why);
     else if (m.t === 'end') guestEnded(m.why);
     else if (m.t === 'no') { setMsg(m.why, true); guestReset(); }
@@ -9353,6 +9384,134 @@ window.sellHouse = sellHouse;
   }
   document.addEventListener('input', formEvt, true);
   document.addEventListener('change', formEvt, true);
+
+  // ====================== 💬 CHAT ======================
+  // Host = pusat chat: pesan tamu dikirim ke host (t:'chat'), host menyiarkan ke semua pemain. Riwayat dikirim ke yang baru masuk/sambung ulang.
+  const CHAT_MAX = 200, CHAT_KEEP = 60;
+  OL.chatLog = []; OL.chatUnread = 0; OL.chatLast = 0;
+  let chatEl = null, peekTimer = 0;
+  const cleanChat = (x) => String(x == null ? '' : x).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+  const safeColor = (c) => (typeof c === 'string' && /^[#a-z0-9(),.%\s-]{1,30}$/i.test(c)) ? c : '';
+  const mySeat = () => (OL.role === 'host' ? 0 : OL.seat);
+  function chatActive() {
+    return (OL.role === 'host' && OL.peers.size > 0) || (OL.role === 'guest' && !OL.ended && !!OL.guest && OL.guest.status === 'open' && OL.seat >= 0);
+  }
+  function chatWho(seat) {
+    let name = '', color = '', avatar = '';
+    try { if (gameStarted() && players[seat]) { name = players[seat].name || ''; color = players[seat].color || ''; avatar = players[seat].avatar || ''; } } catch (e) {}
+    if (!name) {
+      if (seat === 0) { const i = document.querySelector('#playerInputs input[data-idx="0"]'); name = (i && i.value) || 'Host'; }
+      else name = (OL.seats[seat] && OL.seats[seat].name) || 'Pemain';
+    }
+    return { name: String(name).slice(0, 20), color: safeColor(color), avatar: String(avatar).slice(0, 8) };
+  }
+  function hostChat(seat, text) {
+    const w = chatWho(seat), m = { t: 'chat', s: seat, n: w.name, a: w.avatar, c: w.color, x: text, ts: Date.now() };
+    pushChat(m, true);
+    OL.peers.forEach((p) => sendDC(p.dc, m));
+  }
+  function hostSys(text) {
+    if (OL.role !== 'host') return;
+    const m = { t: 'chat', sys: 1, x: String(text).slice(0, 80), ts: Date.now() };
+    pushChat(m, false);
+    OL.peers.forEach((p) => sendDC(p.dc, m));
+  }
+  function chatMsgEl(m) {
+    const d = document.createElement('div');
+    if (m.sys) { d.className = 'ocm sys'; d.textContent = '— ' + m.x + ' —'; return d; }
+    d.className = 'ocm' + (m.s === mySeat() ? ' mine' : '');
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = ((m.a ? m.a + ' ' : '') + (m.n || 'Pemain')).trim();
+    const c = safeColor(m.c); if (c) n.style.color = c;
+    const t = document.createElement('span'); t.className = 't'; t.textContent = String(m.x || '').slice(0, CHAT_MAX);
+    d.appendChild(n); d.appendChild(t);
+    return d;
+  }
+  function chatList() { return chatEl && chatEl.querySelector('#olChatList'); }
+  function renderChatAll() {
+    const l = chatList(); if (!l) return;
+    l.textContent = '';
+    if (!OL.chatLog.length) { const e = document.createElement('div'); e.className = 'ocm-empty'; e.textContent = 'Belum ada pesan. Sapa temanmu! 👋'; l.appendChild(e); return; }
+    OL.chatLog.forEach((m) => l.appendChild(chatMsgEl(m)));
+    l.scrollTop = l.scrollHeight;
+  }
+  function pushChat(m, live) {
+    OL.chatLog.push(m); if (OL.chatLog.length > CHAT_KEEP) OL.chatLog.splice(0, OL.chatLog.length - CHAT_KEEP);
+    ensureChat();
+    const l = chatList();
+    if (l) {
+      const emp = l.querySelector('.ocm-empty'); if (emp) emp.remove();
+      const near = l.scrollHeight - l.scrollTop - l.clientHeight < 60;
+      l.appendChild(chatMsgEl(m));
+      while (l.childNodes.length > CHAT_KEEP) l.removeChild(l.firstChild);
+      if (near || m.s === mySeat()) l.scrollTop = l.scrollHeight;
+    }
+    if (live && !m.sys && m.s !== mySeat()) {
+      if (!chatEl.classList.contains('open')) { OL.chatUnread++; chatPeek(`${m.a ? m.a + ' ' : ''}${m.n || 'Pemain'}: ${m.x}`); }
+    }
+    chatBadge();
+  }
+  function mergeChatLog(list) {
+    if (!Array.isArray(list)) return;
+    const key = (m) => m.ts + '|' + (m.s == null ? 'x' : m.s) + '|' + m.x, seen = new Set(), out = [];
+    list.concat(OL.chatLog).forEach((m) => { if (!m || typeof m.x !== 'string') return; const k = key(m); if (seen.has(k)) return; seen.add(k); out.push(m); });
+    out.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    OL.chatLog = out.slice(-CHAT_KEEP);
+    ensureChat(); renderChatAll();
+  }
+  function chatBadge() {
+    if (!chatEl) return;
+    const b = chatEl.querySelector('#olChatBadge'); if (!b) return;
+    b.style.display = OL.chatUnread > 0 ? 'block' : 'none';
+    b.textContent = OL.chatUnread > 9 ? '9+' : String(OL.chatUnread);
+  }
+  function chatPeek(text) {
+    const p = chatEl && chatEl.querySelector('#olChatPeek'); if (!p) return;
+    p.textContent = text; p.style.display = 'block';
+    clearTimeout(peekTimer); peekTimer = setTimeout(() => { p.style.display = 'none'; }, 3800);
+  }
+  function openChat() {
+    ensureChat(); chatEl.classList.add('open'); OL.chatUnread = 0; chatBadge();
+    const l = chatList(); if (l) l.scrollTop = l.scrollHeight;
+  }
+  function closeChat() { if (chatEl) chatEl.classList.remove('open'); }
+  function sendChat(raw) {
+    const text = cleanChat(raw); if (!text) return false;
+    const now = Date.now(); if (now - OL.chatLast < 400) return false; OL.chatLast = now;
+    if (OL.role === 'host') hostChat(0, text);
+    else if (OL.role === 'guest') guestSend({ t: 'chat', x: text });
+    return true;
+  }
+  function ensureChat() {
+    if (chatEl) return chatEl;
+    const w = document.createElement('div'); w.id = 'olChat'; w.setAttribute('data-ol', '');
+    w.innerHTML = '<button type="button" id="olChatBtn" aria-label="Chat">💬</button><span id="olChatBadge"></span><div id="olChatPeek"></div>' +
+      '<div id="olChatPanel"><div class="ocp-h"><b>💬 Chat Room</b><button type="button" id="olChatX" aria-label="Tutup">✕</button></div>' +
+      '<div id="olChatList"></div>' +
+      '<div class="ocp-q">' + ['👍', '😂', '😡', '🤝', '💸', '🔥'].map((e) => '<button type="button" data-q="' + e + '">' + e + '</button>').join('') + '</div>' +
+      '<div class="ocp-in"><input id="olChatInput" maxlength="' + CHAT_MAX + '" placeholder="Ketik pesan…" autocomplete="off"><button type="button" id="olChatSend">Kirim</button></div></div>';
+    document.body.appendChild(w); chatEl = w;
+    const inp = w.querySelector('#olChatInput');
+    const send = () => { if (sendChat(inp.value)) inp.value = ''; };
+    w.querySelector('#olChatBtn').addEventListener('click', () => { w.classList.contains('open') ? closeChat() : openChat(); });
+    w.querySelector('#olChatPeek').addEventListener('click', openChat);
+    w.querySelector('#olChatX').addEventListener('click', closeChat);
+    w.querySelector('#olChatSend').addEventListener('click', send);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+    w.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => sendChat(b.dataset.q)));
+    renderChatAll(); chatBadge();
+    return w;
+  }
+  function updateChatUI() {
+    const on = chatActive();
+    if (!on && !chatEl) return;
+    ensureChat();
+    chatEl.style.display = on ? 'block' : 'none';
+    if (!on) closeChat();
+  }
+  function chatReset() {
+    OL.chatLog = []; OL.chatUnread = 0;
+    if (chatEl) { closeChat(); renderChatAll(); chatBadge(); chatEl.style.display = 'none'; }
+  }
 
   // ====================== UI ======================
   let ov, pill;
@@ -9398,6 +9557,7 @@ window.sellHouse = sellHouse;
     pill.style.display = on ? 'block' : 'none';
     if (pill.textContent !== txt) pill.textContent = txt;
     pill.classList.toggle('mine', !!(OL.role === 'guest' && OL.gmeta && OL.gmeta.st && OL.gmeta.actor === OL.seat));
+    updateChatUI();
   }
 
   function seatRows() {
