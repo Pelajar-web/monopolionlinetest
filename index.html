@@ -1220,6 +1220,15 @@ body.bot-lock #statusText::before{content:"🤖 ";}
 .ol-kick{margin-left:8px;padding:3px 9px;border:1px solid rgba(248,113,113,.6);background:rgba(239,68,68,.15);color:#fca5a5;border-radius:8px;font-size:.72rem;font-weight:800;cursor:pointer}
 .ol-kick:active{transform:scale(.95)}
 #olOverlay .ol-seat{display:flex;align-items:center;flex-wrap:wrap}
+#olOverlay .ol-info{margin-top:12px;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px}
+#olOverlay .ol-info h4{font-size:.8rem;color:var(--gold);margin:0 0 6px;letter-spacing:.03em}
+#olOverlay .ol-info .ol-irow{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:.84rem;border-bottom:1px dashed rgba(255,255,255,.08)}
+#olOverlay .ol-info .ol-irow:last-of-type{border-bottom:0}
+#olOverlay .ol-info .ol-irow span:first-child{color:var(--muted);white-space:nowrap}
+#olOverlay .ol-info .ol-irow span:last-child{text-align:right;font-weight:600}
+#olOverlay .ol-info .ol-on{color:#4ade80}
+#olOverlay .ol-info .ol-off{color:#f87171}
+#olOverlay .ol-info .ol-me{color:var(--gold);font-weight:700}
 #olOverlay .ol-seat .ol-kick{margin-left:auto}
 #olOverlay .ol-seat b{display:inline-block;width:20px;color:var(--gold)}
 #olOverlay .ol-msg{margin-top:10px;padding:9px 11px;border-radius:9px;font-size:.82rem;background:rgba(56,189,248,.12);color:#bae6fd}
@@ -1941,21 +1950,22 @@ const SPACES_96 = buildSpaces96();
 
 // ========== PAPAN RUSSIAN ROULETTE (40 petak, tanah negara tidak ada yang bersebelahan) ==========
 // Tata letak mirip papan klasik, tapi tanah yang bersebelahan (9,14,19,24,27,32) diganti petak kartu/roulette.
-// Petak 33 = Russian Roulette, petak 1 dan 24 = Roda Keberuntungan, petak 14 = Monako (tanah khusus lelang).
-// 10 petak pertama: 1 Roda, 2 Indonesia, 3 Dana Umum, 4 Malaysia, 5 Stasiun, 6 Thailand, 7 Kesempatan, 8 Vietnam, 9 Pajak (Indonesia-Malaysia-Thailand-Vietnam tetap berdekatan, tetap tidak bersebelahan).
+// Petak 34 = Russian Roulette, petak 33 = Turki, petak 1 dan 24 = Roda Keberuntungan, petak 14 = Vatikan (tanah khusus lelang), petak 3 = Pajak Pendapatan, petak 9 = Dana Umum.
+// 10 petak pertama: 1 Roda, 2 Indonesia, 3 Pajak Pendapatan, 4 Malaysia, 5 Stasiun, 6 Thailand, 7 Kesempatan, 8 Vietnam, 9 Dana Umum (Indonesia-Malaysia-Thailand-Vietnam tetap berdekatan, tetap tidak bersebelahan).
 const SPACES_ROULETTE = (function () {
   const swap = {
     1:  { name:'Roda Keberuntungan', type:'wheel' },
     2:  { name:'Indonesia', type:'property', price:60, rent:2, color:'#92400e', group:'brown', houseCost:50 },
-    3:  { name:'Dana Umum', type:'chest' },
+    3:  { name:'Pajak Pendapatan', type:'tax', price:200 },
     4:  { name:'Malaysia', type:'property', price:60, rent:4, color:'#92400e', group:'brown', houseCost:50 },
-    9:  { name:'Pajak Pendapatan', type:'tax', price:200 },
-    14: { name:'Monako', type:'property', price:500, rent:60, color:'#facc15', group:'lelangEmas', houseCost:250, auctionOnly:true },
+    9:  { name:'Dana Umum', type:'chest' },
+    14: { name:'Vatikan', type:'property', price:160, rent:12, color:'#facc15', group:'lelangEmas', houseCost:100, auctionOnly:true },
     19: { name:'Kesempatan', type:'chance' },
     24: { name:'Roda Keberuntungan', type:'wheel' },
     27: { name:'Kesempatan', type:'chance' },
     32: { name:'Dana Umum',  type:'chest' },
-    33: { name:'Russian Roulette', type:'roulette' }
+    33: { name:'Turki', type:'property', price:320, rent:28, color:'#22c55e', group:'green', houseCost:200 },
+    34: { name:'Russian Roulette', type:'roulette' }
   };
   const out = SPACES_CLASSIC.map(sp => swap[sp.id] ? Object.assign({ id: sp.id }, swap[sp.id]) : Object.assign({}, sp));
   return out;
@@ -2272,6 +2282,7 @@ function rollFace(faces) { return faces[Math.floor(Math.random() * faces.length)
 let thirdDiceEffect = null; // current effect object after roll
 let pendingThirdFlags = { extraRoll: false, skipTurn: false, nearestProp: false };
 let pendingDebt = null; // { amount, toPlayerIdx, reason, afterPay }
+let gameOver = false;   // true setelah ada pemenang (menunggu Main Lagi)
 
 const THIRD_DICE_EFFECTS = {
   1: { id: 1, name: '+1 Langkah', short: '+1 Langkah' },
@@ -2325,7 +2336,7 @@ const STRATEGY_CARDS = [
   { id: 'immunity', name: 'Imunitas + Lempar', short: '🛡️ Imunitas', rarity: 'langka', desc: 'Perlindungan 1 giliran dari sewa. Lalu lempar dadu.' },
   { id: 'trap', name: 'Pasang Jebakan', short: '💣 Jebakan×2', rarity: 'langka', desc: 'Jebakan di tanah: korban skip 2 giliran (1x).' },
   { id: 'wheel', name: 'Roda Keberuntungan', short: '🎡 Roda', rarity: 'biasa', desc: 'Putar Roda Keberuntungan sekarang.' },
-  { id: 'avoid_bankrupt', name: 'Hindari Bangkrut', short: '💚 Hindari Bangkrut', rarity: 'legendaris', desc: 'Saat bangkrut, hidup lagi dengan Rp1000. Bisa dipakai kapan saja: jika uangmu di bawah Rp1000, jadikan Rp1000. Unique. (Tidak membatalkan utang)' },
+  { id: 'avoid_bankrupt', name: 'Hindari Bangkrut', short: '💚 Hindari Bangkrut', rarity: 'legendaris', desc: 'Saat bangkrut, hidup lagi dengan Rp500. Bisa dipakai kapan saja: jika uangmu di bawah Rp500, jadikan Rp500. Unique.' },
   { id: 'cheap_house', name: 'Upgrade Murah', short: '🏠 Upgrade −50%', rarity: 'epik', desc: 'Biaya rumah/hotel −50% untuk semua pemain selamanya. Unique.' },
   { id: 'expensive_house', name: 'Upgrade Mahal', short: '🏠 Upgrade +50%', rarity: 'epik', desc: 'Biaya rumah/hotel +50% untuk semua pemain selamanya. Unique.' },
   { id: 'jail_player', name: 'Masukkan ke Penjara', short: '🔒 Penjara', rarity: 'langka', desc: 'Pilih pemain, masukkan ke Penjara.' },
@@ -2345,8 +2356,8 @@ const STRATEGY_CARDS = [
   { id: 'free_house', name: 'Rumah Gratis', short: '🏠 Rumah Gratis', rarity: 'langka', desc: 'Bangun 1 rumah gratis di monopoli.' },
   { id: 'jail_self_out', name: 'Bebas Penjara', short: '🔓 Keluar Penjara', rarity: 'langka', desc: 'Keluar penjara gratis / simpan.' },
   { id: 'teleport_rail', name: 'Stasiun Kilat', short: '🚂 Ke Stasiun', rarity: 'epik', desc: 'Pindah ke stasiun milikmu.' },
-  { id: 'forward5', name: 'Maju 5', short: '➡️ +5', rarity: 'langka', desc: 'Maju 5 petak.' },
-  { id: 'back5', name: 'Mundur 5', short: '⬅️ −5', rarity: 'langka', desc: 'Mundur 5 petak.' },
+  { id: 'forward5', name: 'Maju 3', short: '➡️ +3', rarity: 'langka', desc: 'Maju 3 petak.' },
+  { id: 'back5', name: 'Mundur 3', short: '⬅️ −3', rarity: 'langka', desc: 'Mundur 3 petak.' },
   { id: 'rent_to_me', name: 'Tarik Sewa', short: '💰 +Sewa Acak', rarity: 'langka', desc: 'Terima sewa dasar 1 properti lawan acak.' },
   { id: 'money_400', name: 'Bonus Besar', short: '💵 +Rp400', rarity: 'epik', desc: 'Terima Rp400 dari bank.' },
   { id: 'energy_5', name: 'Energi Epik', short: '⚡ +5', rarity: 'epik', desc: 'Dapat +5 energi strategi.' },
@@ -2693,6 +2704,37 @@ document.getElementById('startBtn').addEventListener('click', () => {
   log(`Permainan dimulai dengan ${n} pemain! Modal awal Rp${startMoney}${thirdDiceEnabled ? ' • Dadu Ketiga AKTIF' : ''}${currentMapId === 'dual' ? ' • Peta Dua Tingkat AKTIF' : ''}${currentMapId === 'tri' ? ' • Peta Tiga Tingkat AKTIF' : ''}${currentMapId === 'big96' ? ' • Papan Raksasa 96 Petak AKTIF' : ''}${currentMapId === 'roulette' ? ' • Papan Russian Roulette AKTIF' : ''}${currentMapId === 'acak' ? ' • Papan Acak AKTIF' : ''}`, 'important');
   startTurn();
 });
+
+// ========== 🔄 MAIN LAGI (MODE ONLINE, ROOM SAMA) ==========
+// Mengembalikan semua state permainan ke kondisi awal tanpa memuat ulang halaman (room & koneksi tetap).
+function resetGameForRematch() {
+  gameOver = false;
+  players = []; currentPlayer = 0;
+  dice1 = 0; dice2 = 0; dice3 = 0; doublesCount = 0;
+  waitingAction = false; turnSkipped = false; hasRolledThisTurn = false; stratMovedNoRoll = false; stratApplying = false;
+  owned = {}; mortgaged = {}; houses = {}; stockOwned = {};
+  ownedInner = {}; mortgagedInner = {}; housesInner = {};
+  auction = null; auctionPaid = {}; freeParkingPot = 0; landEffects = {};
+  pendingDebt = null; pendingTrade = null; pendingStratDraw = null; pendingStrat = null; pendingLevelSwitch = null;
+  thirdDiceEffect = null; pendingThirdFlags = { extraRoll: false, skipTurn: false, nearestProp: false };
+  stratUniqueTaken = { avoid_bankrupt: false, cheap_house: false, expensive_house: false };
+  houseCostGlobal = { cheap: false, expensive: false };
+  diceFaces1 = DICE_PRESETS.std.slice(); diceFaces2 = DICE_PRESETS.std.slice();
+  displayedLevel = 'outer';
+  document.querySelectorAll('.modal-overlay.show').forEach(e => e.classList.remove('show'));
+  try { hideBoardPropPopup(); } catch (e) {}
+  const lg = document.getElementById('gameLog'); if (lg) lg.innerHTML = '';
+  const ab = document.getElementById('actionBtns'); if (ab) ab.innerHTML = '';
+  document.body.classList.remove('ol-lock', 'bot-lock');
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('setup').style.display = '';
+  try { window.scrollTo(0, 0); } catch (e) {}
+}
+function playAgainOnline() {
+  if (document.body.classList.contains('ol-host') && window.__OL && typeof window.__OL.playAgain === 'function') window.__OL.playAgain();
+  else if (!isOnlineRoomActive()) location.reload();
+  else showToast('Hanya host yang bisa menekan Main Lagi.');
+}
 
 // ========== 💾 SIMPAN & LANJUTKAN PERMAINAN TERAKHIR ==========
 // Permainan disimpan otomatis (localStorage) di awal setiap giliran. Saat dilanjutkan, game kembali ke awal giliran pemain tersebut.
@@ -3360,7 +3402,7 @@ function getUpgradeValue(spaceId) {
 let auctionPaid = {}; // spaceId -> harga lelang tanah khusus lelang (dasar harga beli paksa)
 function getForcedBuyPrice(spaceId) {
   const sp = SPACES[spaceId];
-  // Tanah khusus lelang (Monako): dasar = harga saat dilelang, bukan harga asli
+  // Tanah khusus lelang (Vatikan): dasar = harga saat dilelang, bukan harga asli
   const base = (sp.auctionOnly && auctionPaid[spaceId] !== undefined) ? auctionPaid[spaceId] : (sp.price || 0);
   const upgrade = getUpgradeValue(spaceId);
   // Tanah tanpa bangunan: harga × 2. Tanah dengan bangunan: (harga tanah + harga seluruh upgrade bangunan) × 2
@@ -4196,7 +4238,7 @@ function handleProperty() {
     // Tanah khusus lelang: tidak bisa dibeli langsung, hanya lewat lelang; pemenang langsung bisa membangun
     showBoardPropPopup(
       `${sp.name} — Khusus Lelang`,
-      `Harga asli: <strong>Rp${sp.price}</strong> • Sewa dasar: Rp${sp.rent}<br>Tanah ini <strong>tidak bisa dibeli</strong>, hanya lewat lelang. Pemenangnya <strong>langsung bisa membangun</strong> (grup warna hanya satu negara).`,
+      `Harga asli: <strong>Rp${sp.price}</strong> • Sewa dasar: Rp${sp.rent}`,
       [{ text: 'Mulai Lelang', class: 'btn-gold', onClick: () => startAuction(p.pos, 'outer', { done: () => endTurnOrDouble() }) }]
     );
     return;
@@ -5472,11 +5514,11 @@ function tryUseStratCard(handIdx) {
   const p = players[currentPlayer];
   if (!p || p.bankrupt) return;
   if (p.hand[handIdx] === 'avoid_bankrupt') {
-    // Saat krisis keuangan: hidup lagi dengan Rp1000 (gratis energi)
+    // Saat krisis keuangan: hidup lagi dengan Rp500 (gratis energi)
     if (pendingDebt) { document.getElementById('debtUseAvoid').click(); return; }
-    // Di luar krisis: bisa dipakai kapan saja — jika uang di bawah Rp1000, jadikan Rp1000
+    // Di luar krisis: bisa dipakai kapan saja — jika uang di bawah Rp500, jadikan Rp500
     if (auction) { showToast('🔨 Saat lelang hanya kartu penambah uang yang bisa dipakai.'); return; }
-    if (p.money >= 1000) { showToast('💚 Uangmu sudah Rp1000 atau lebih — kartu ini belum perlu dipakai.'); return; }
+    if (p.money >= 500) { showToast('💚 Uangmu sudah Rp500 atau lebih — kartu ini belum perlu dipakai.'); return; }
     if ((p.energy || 0) < stratCost('avoid_bankrupt')) {
       showToast(`Butuh ⚡${stratCost('avoid_bankrupt')}! (punya ${p.energy})`);
       return;
@@ -5902,27 +5944,24 @@ function applyStratCardCore(cardId, opts) {
     return;
   }
   if (cardId === 'avoid_bankrupt') {
-    // Dipakai di luar krisis: jika uang di bawah Rp1000, jadikan Rp1000
-    if (p.money >= 1000) {
-      showToast('💚 Uangmu sudah Rp1000 atau lebih.');
+    // Dipakai di luar krisis: jika uang di bawah Rp500, jadikan Rp500
+    if (p.money >= 500) {
+      showToast('💚 Uangmu sudah Rp500 atau lebih.');
       p.hasAvoidCard = true;
       p.hand.push('avoid_bankrupt'); // kembalikan kartu
       p.energy += stratCost('avoid_bankrupt'); // refund energi
       updateStratUI();
       return;
     }
-    const gain = 1000 - p.money;
-    p.money = 1000;
+    const gain = 500 - p.money;
+    p.money = 500;
     moneyAnim(currentPlayer, gain);
-    log(`${p.name} memakai HINDARI BANGKRUT — uang dijadikan Rp1000 (+Rp${gain})`, 'money');
-    showToast('💚 Hindari Bangkrut! Uang jadi Rp1000');
+    log(`${p.name} memakai HINDARI BANGKRUT — uang dijadikan Rp500 (+Rp${gain})`, 'money');
+    showToast('💚 Hindari Bangkrut! Uang jadi Rp500');
     updatePlayersPanel();
     updateStratUI();
-    // Utang tidak dibatalkan: jika sedang berutang, lanjutkan penyelesaian utang
-    if (pendingDebt) {
-      if (p.money >= pendingDebt.amount) settleDebtIfPossible();
-      else showDebtActionButtons();
-    }
+    // Jika sedang berutang, utang dibatalkan (rahasia, tidak ada di deskripsi)
+    if (pendingDebt) cancelDebtByAvoidCard();
     return;
   }
   if (cardId === 'cheap_house') {
@@ -6074,10 +6113,10 @@ function applyStratCardCore(cardId, opts) {
   if (cardId==='energy_8'){addEnergy(p,8);updateStratUI();updatePlayersPanel();return;}
   if (cardId==='forward1'){moveN(1);return;}
   if (cardId==='forward2'){moveN(2);return;}
-  if (cardId==='forward5'){moveN(5);return;}
+  if (cardId==='forward5'){moveN(3);return;}
   if (cardId==='back1'){moveN(-1);return;}
   if (cardId==='back2'){moveN(-2);return;}
-  if (cardId==='back5'){moveN(-5);return;}
+  if (cardId==='back5'){moveN(-3);return;}
   if (cardId==='random_forward'){moveN(1+Math.floor(Math.random()*4));return;}
   if (cardId==='claim_parking'){
     if(freeParkingPot>0){const pot=freeParkingPot;freeParkingPot=0;p.money+=pot;moneyAnim(currentPlayer,pot);log(`${p.name} ambil Parkir Rp${pot}`,'money');updateFreeParkingDisplay();updatePlayersPanel();}
@@ -7678,7 +7717,10 @@ function endTurn() {
   const alive = players.filter(pl => !pl.bankrupt);
   if (alive.length === 1) {
     setStatus(`🏆 ${alive[0].name} MENANG!`);
-    document.getElementById('actionBtns').innerHTML = `<button class="btn-primary" onclick="location.reload()">Main Lagi</button>`;
+    gameOver = true;
+    document.getElementById('actionBtns').innerHTML = isOnlineRoomActive()
+      ? `<button class="btn-primary" id="btnPlayAgain" onclick="playAgainOnline()">🔄 Main Lagi (room sama)</button>`
+      : `<button class="btn-primary" onclick="location.reload()">Main Lagi</button>`;
     log(`🏆 ${alive[0].name} adalah pemenangnya!`, 'important');
     clearSavedGame();
     return;
@@ -7819,28 +7861,37 @@ document.getElementById('debtUseAvoid').onclick = () => {
     showToast('Tidak punya kartu Hindari Bangkrut!');
     return;
   }
-  if (p.money >= 1000) {
-    showToast('💚 Uangmu sudah Rp1000 atau lebih — kartu tidak menambah uang. Gadai/jual/dagang untuk cari uang.');
-    return;
-  }
   // Consume card without energy (special crisis use)
   if (idx >= 0) p.hand.splice(idx, 1);
   p.hasAvoidCard = false;
-  // Utang TIDAK dibatalkan: uang hanya dijadikan Rp1000, utang tetap harus dibayar
-  const gain = 1000 - p.money;
-  p.money = 1000;
-  moneyAnim(currentPlayer, gain);
+  // Uang dijadikan minimal Rp500 dan utang dibatalkan
+  const gain = Math.max(0, 500 - p.money);
+  if (gain > 0) { p.money = 500; moneyAnim(currentPlayer, gain); }
   document.getElementById('debtModal').classList.remove('show');
-  log(`${p.name} memakai HINDARI BANGKRUT — uang dijadikan Rp1000 (+Rp${gain}), utang tetap harus dibayar`, 'important');
+  log(`${p.name} memakai HINDARI BANGKRUT` + (gain > 0 ? ` — uang dijadikan Rp500 (+Rp${gain})` : ''), 'important');
   updatePlayersPanel();
   updateStratUI();
-  showToast('💚 Hindari Bangkrut! Uang jadi Rp1000 (utang tidak dibatalkan)');
-  if (pendingDebt && p.money >= pendingDebt.amount) {
-    settleDebtIfPossible();
-  } else {
-    showDebtActionButtons();
-  }
+  showToast('💚 Hindari Bangkrut!');
+  cancelDebtByAvoidCard();
 };
+
+// Membatalkan utang tanpa membayar, lalu lanjutkan alur giliran seperti setelah bayar
+function cancelDebtByAvoidCard() {
+  if (!pendingDebt) return;
+  const { afterPay } = pendingDebt;
+  pendingDebt = null;
+  document.getElementById('debtModal').classList.remove('show');
+  updatePlayersPanel();
+  // Sembunyikan log "bayar ..." dari callback agar tidak terbaca seolah utang dibayar
+  const origLog = log;
+  log = function (msg, cls) { if (/bayar/i.test(String(msg))) return; return origLog.apply(this, arguments); };
+  try {
+    if (afterPay) afterPay();
+    else endTurnOrDouble();
+  } finally {
+    log = origLog;
+  }
+}
 
 function bankrupt(playerIdx, toPlayerIdx) {
   const p = players[playerIdx];
@@ -8405,7 +8456,7 @@ window.sellHouse = sellHouse;
     return out;
   }
   const ALWAYS = new Set(['wheel', 'b3_wheel_energy', 'b3_draw_card', 'b3_draw_epic', 'b4_draw_rare_only', 'b3_dice_gamble', 'b4_coin_flip', 'pay_tax_half', 'pay_tax_zero', 'go_bonus_25', 'double_go_small', 'b3_go_300', 'rent_to_me', 'jail_random']);
-  const MOVE = { forward1: 1, back1: -1, forward5: 5, back5: -5 };
+  const MOVE = { forward1: 1, back1: -1, forward5: 3, back5: -3 };
   function instantOk(id, p) {
     const opp = players.filter((q, i) => i !== currentPlayer && !q.bankrupt);
     if (!opp.length) return false;
@@ -8561,7 +8612,7 @@ window.sellHouse = sellHouse;
   function setLock(on) { document.body.classList.toggle('bot-lock', !!on); }
 
   function tick() {
-    if (!players.length || $('game').style.display === 'none') { setLock(false); return; }
+    if (!players.length || $('game').style.display === 'none' || gameOver) { setLock(false); return; }
 
     if (auction && shown('tradeAcceptModal') && pendingTrade && players[pendingTrade.to] && players[pendingTrade.to].isBot) {
       setLock(true); botTrade(); return;
@@ -8783,6 +8834,7 @@ window.sellHouse = sellHouse;
   const shown = (id) => { const e = $(id); return !!e && e.classList.contains('show'); };
   function actorIdx() {
     try {
+      if (gameOver) return 0;   // game selesai: hanya host yang boleh menekan Main Lagi
       if (pendingTrade && shown('tradeAcceptModal') && pendingTrade.to != null) return pendingTrade.to;
       if (auction) { const i = auction.participants[auction.currentIdx]; if (i != null) return i; }
       return currentPlayer;
@@ -8898,6 +8950,34 @@ window.sellHouse = sellHouse;
     c.querySelectorAll('[data-anim-bound]').forEach((e) => e.removeAttribute('data-anim-bound'));
     return c.outerHTML;
   }
+  // Info room untuk tamu: jumlah pemain, nama, modal awal, dadu ketiga, kartu strategi, papan
+  function roomInfo() {
+    const started = gameStarted();
+    const n = started ? players.length : (parseInt($('numPlayers').value, 10) || 2);
+    const mapSel = $('mapSelect'), opt = mapSel && mapSel.selectedOptions && mapSel.selectedOptions[0];
+    const hl = $('handLimitSelect');
+    const pl = [];
+    for (let i = 0; i < n; i++) {
+      let name, bot;
+      if (started && players[i]) { name = ((players[i].avatar || '') + ' ' + players[i].name).trim(); bot = !!players[i].isBot; }
+      else {
+        const inp = document.querySelector('#playerInputs input[data-idx="' + i + '"]');
+        const cb = document.querySelector('#playerInputs input[data-bot="' + i + '"]');
+        name = ((inp && inp.value) || '').trim() || ('Pemain ' + (i + 1)); bot = !!(cb && cb.checked);
+      }
+      const st = OL.seats[i];
+      const k = i === 0 ? 'host' : (st ? (st.connected ? 'on' : 'off') : (bot ? 'bot' : 'loc'));
+      pl.push([name, k]);
+    }
+    return {
+      n, pl,
+      money: parseInt(($('startMoney') || {}).value, 10) || 0,
+      td: !!($('thirdDiceToggle') || {}).checked,
+      st: !!($('strategiToggle') || {}).checked,
+      hl: hl ? parseInt(hl.value, 10) : 5,
+      map: opt ? opt.textContent.trim() : ''
+    };
+  }
   function buildMeta() {
     const m = { st: gameStarted(), gd: $('game').style.display || '', zb: ($('zoomBar') || {}).style ? $('zoomBar').style.display : '' };
     try {
@@ -8907,6 +8987,7 @@ window.sellHouse = sellHouse;
       m.map = currentMapId;
       if (currentMapId === 'big96' && players[realTurnIdx()]) m.follow = 'space-' + players[realTurnIdx()].pos;
     } catch (e) {}
+    try { m.ri = roomInfo(); m.over = !!gameOver; } catch (e) {}
     return m;
   }
   function dynKeys() { return regionList().filter(([k]) => k[0] === 'd').map(([k]) => k); }
@@ -9181,6 +9262,23 @@ window.sellHouse = sellHouse;
       setTimeout(() => { try { hostCloseRoom(); } catch (e) {} location.reload(); }, 500);
     });
   }
+  // Main Lagi: reset game, room & pemain yang sama tetap, kembali ke menu (host menekan Mulai Permainan)
+  function hostPlayAgain() {
+    if (OL.role !== 'host') return;
+    resetGameForRematch();
+    Object.keys(OL.seats).forEach((k) => {
+      const st = OL.seats[k];
+      if (!st.connected) { clearTimeout(st.timer); delete OL.seats[k]; }
+    });
+    OL.last = {}; OL.lastMeta = ''; OL.lastDyn = ''; OL.dirty.clear();
+    setLockClass(false);
+    applySeatNames(true);
+    OL.view = 'host'; showOverlay(); renderOverlay(); updatePill();
+    OL.peers.forEach((p) => sendFull(p));
+    hostSys('🔄 Host mengulang permainan. Menunggu host menekan Mulai Permainan…');
+    toast('🔄 Kembali ke menu. Atur ulang bila perlu, lalu tekan Mulai Permainan.');
+  }
+  OL.playAgain = hostPlayAgain;
   function hostCloseRoom() {
     OL.sid++;
     try { OL.pj && OL.pj.destroy(); } catch (e) {} OL.pj = null;
@@ -9324,8 +9422,10 @@ window.sellHouse = sellHouse;
       document.querySelectorAll('body > [id]').forEach((e) => { /* hanya yang kita buat sendiri via dynMap dihapus */ });
     }
     if (m.m) {
+      const prevSt = !!(OL.gmeta && OL.gmeta.st);
       OL.gmeta = m.m;
       const gm = m.m;
+      if (OL.role === 'guest' && ov && ov.classList.contains('show') && OL.view === 'gstatus' && OL.seat >= 0) renderOverlay();
       $('game').style.display = gm.st ? (gm.gd || 'block') : 'none';
       const zb = $('zoomBar'); if (zb) zb.style.display = gm.zb || '';
       if (gm.st) guestUI(true);
@@ -9335,6 +9435,7 @@ window.sellHouse = sellHouse;
         if (wrap && el) wrap.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - wrap.clientWidth / 2, top: el.offsetTop + el.offsetHeight / 2 - wrap.clientHeight / 2, behavior: 'smooth' });
       }
       setLockClass(gm.st && gm.actor !== OL.seat);
+      if (prevSt && !gm.st && OL.seat >= 0 && !OL.ended) { OL.view = 'gstatus'; msgText = ''; showOverlay(); renderOverlay(); }
       updatePill();
     }
   }
@@ -9370,7 +9471,7 @@ window.sellHouse = sellHouse;
     const tgt = t.closest('button, input, label, [onclick]') || t;
     e.stopPropagation(); e.preventDefault();
     if (!OL.gmeta || !OL.gmeta.st) return;
-    if (OL.gmeta.actor !== OL.seat) { toast('⏳ Bukan giliranmu'); return; }
+    if (OL.gmeta.actor !== OL.seat) { toast(OL.gmeta.over ? '🏁 Permainan selesai — tunggu host menekan Main Lagi' : '⏳ Bukan giliranmu'); return; }
     const p = pathOf(tgt); if (!p) return;
     guestSend({ t: 'click', p, x: (tgt.textContent || '').trim().slice(0, 24) });
   }, true);
@@ -9572,6 +9673,25 @@ window.sellHouse = sellHouse;
     return h;
   }
 
+  function guestInfoHtml() {
+    const r = OL.gmeta && OL.gmeta.ri; if (!r) return '';
+    const KIND = { host: '👑 Host', on: '🟢 Online', off: '🔴 Terputus', bot: '🤖 Bot', loc: '📱 Lokal' };
+    const onoff = (b, t) => `<span class="${b ? 'ol-on' : 'ol-off'}">${b ? '✅ ' : '⛔ '}${t}</span>`;
+    const money = 'Rp' + Number(r.money || 0).toLocaleString('id-ID');
+    const hl = r.hl === 0 ? 'tak terbatas' : r.hl + ' kartu';
+    let h = `<div class="ol-info"><h4>ℹ️ INFO ROOM</h4>
+      <div class="ol-irow"><span>🗺️ Papan</span><span>${esc(r.map || '-')}</span></div>
+      <div class="ol-irow"><span>👥 Jumlah pemain</span><span>${r.n}</span></div>
+      <div class="ol-irow"><span>💰 Modal awal</span><span>${money}</span></div>
+      <div class="ol-irow"><span>🎲 Dadu ketiga</span>${onoff(r.td, r.td ? 'Aktif' : 'Nonaktif')}</div>
+      <div class="ol-irow"><span>🃏 Kartu strategi</span>${onoff(r.st, r.st ? 'Aktif (simpan maks. ' + hl + ')' : 'Nonaktif')}</div></div>`;
+    h += '<div class="ol-sub" style="margin-top:10px">Pemain:</div>';
+    (r.pl || []).forEach((p, i) => {
+      const me = i === OL.seat;
+      h += `<div class="ol-seat"><b>${i + 1}</b> <span class="${me ? 'ol-me' : ''}">${esc(p[0])}${me ? ' (kamu)' : ''}</span><span style="margin-left:auto;font-size:.76rem;opacity:.85">${KIND[p[1]] || ''}</span></div>`;
+    });
+    return h;
+  }
   function renderOverlay() {
     ensureUI();
     if (OL.role === 'guest' && OL.ended) {
@@ -9596,7 +9716,7 @@ window.sellHouse = sellHouse;
     } else if (OL.role === 'guest' || v === 'gstatus' || v === 'lost') {
       const st = OL.guest ? OL.guest.status : '';
       if (v === 'lost' || st === 'lost') h = `<div class="ol-card"><h3>🔴 Terputus</h3><div class="ol-sub">Koneksi ke host terputus.</div>${m}<div class="ol-row"><button class="btn-primary" data-a="rejoin">🔁 Sambung ulang</button><button class="btn-secondary" data-a="leave">Keluar</button></div></div>`;
-      else if (OL.seat >= 0) h = `<div class="ol-card">${close}<h3>✅ Terhubung</h3><div class="ol-sub">Room <b>${esc(OL.code)}</b> · kamu pemain <b>${OL.seat + 1}</b></div><div class="ol-sub">${gameStartedGuest() ? 'Game berjalan.' : 'Menunggu host memulai permainan…'}</div>${m}<div class="ol-row"><button class="btn-secondary btn-sm" data-a="leave">Keluar room</button>${canClose() ? '<button class="btn-primary btn-sm" data-a="close" style="width:auto">Oke</button>' : ''}</div></div>`;
+      else if (OL.seat >= 0) h = `<div class="ol-card">${close}<h3>✅ Terhubung</h3><div class="ol-sub">Room <b>${esc(OL.code)}</b> · kamu pemain <b>${OL.seat + 1}</b></div><div class="ol-sub">${gameStartedGuest() ? 'Game berjalan.' : 'Menunggu host memulai permainan…'}</div>${guestInfoHtml()}${m}<div class="ol-row"><button class="btn-secondary btn-sm" data-a="leave">Keluar room</button>${canClose() ? '<button class="btn-primary btn-sm" data-a="close" style="width:auto">Oke</button>' : ''}</div></div>`;
       else h = `<div class="ol-card"><h3>🌐 Menyambung…</h3><div class="ol-sub">Room <b>${esc(OL.code)}</b></div>${m || '<div class="ol-msg">Mohon tunggu…</div>'}<div class="ol-row"><button class="btn-secondary btn-sm" data-a="leave">Batal</button></div></div>`;
     } else if (v === 'join') {
       h = `<div class="ol-card"><button class="ol-x" data-a="close">✕</button><h3>🔑 Gabung Room</h3>
