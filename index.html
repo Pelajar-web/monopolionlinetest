@@ -1278,6 +1278,8 @@ body.ol-host.ol-lock #propsModal,body.ol-host.ol-lock #stocksModal,body.ol-host.
 body.ol-host.ol-lock #statusText::before{content:"🌐 ";}
 /* Popup aksi (Pilih Langkah/Dadu, beli/lelang, dll) punya pointer-events:auto sendiri, jadi harus dikunci eksplisit */
 body.ol-host.ol-lock .board-popup,body.ol-host.ol-lock .board-popup *,body.ol-host.ol-lock .pick-mode-banner,body.ol-host.ol-lock .pick-mode-banner *{pointer-events:none !important}
+/* Popup Variasi Dadu: hanya pemain yang sedang giliran boleh menyentuhnya (dropdown, Pakai, Batal) */
+body.ol-lock #diceVarOverlay,body.ol-lock #diceVarOverlay *{pointer-events:none !important}
 
 /* ===== 💾 Lanjutkan Permainan Terakhir ===== */
 #resumeBox{display:none;gap:8px;margin:6px 0 8px;align-items:stretch}
@@ -1346,10 +1348,14 @@ body.ol-host.ol-lock .board-popup,body.ol-host.ol-lock .board-popup *,body.ol-ho
       <input type="checkbox" id="thirdDiceToggle" style="width:18px;height:18px;accent-color:#38bdf8">
       <span>Aktifkan Dadu Ketiga (Efek Spesial)</span>
     </label>
-    <p style="font-size:0.75rem;color:var(--muted);margin-top:6px;line-height:1.35">
-      Jika aktif, setiap lemparan muncul dadu ketiga dengan teks efek:<br>
-      <strong>+1 Langkah</strong> · <strong>Lempar Lagi</strong> · <strong>Pilih Dadu</strong> · <strong>Properti Terdekat</strong> · <strong>Skip Giliran</strong> (tidak bergerak) · <strong>Kali Dadu</strong> (mis. 6×6=36)
-    </p>
+    <div id="thirdDiceModeBox" style="display:none;margin-top:8px">
+      <label for="thirdDiceMode" style="font-size:0.8rem;font-weight:700">Pilihan Dadu Ketiga</label>
+      <select id="thirdDiceMode">
+        <option value="classic">Klasik (+1 Langkah, Lempar Lagi, Pilih Dadu, Properti Terdekat, Skip Giliran, Kali Dadu)</option>
+        <option value="new">Terbaru (1, 2, 3, Pilih Dadu, Properti Terdekat, Lempar Lagi)</option>
+      </select>
+    </div>
+    <p id="thirdDiceDesc" style="font-size:0.75rem;color:var(--muted);margin-top:6px;line-height:1.35"></p>
   </div>
   <div class="form-group">
     <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
@@ -1438,6 +1444,7 @@ body.ol-host.ol-lock .board-popup,body.ol-host.ol-lock .board-popup *,body.ol-ho
       <div class="action-area">
         <div class="action-btns" id="actionBtns"></div>
       </div>
+      <div class="extra-btns" id="diceVarRow" style="margin-top:6px"><button class="btn-secondary btn-sm" id="btnDiceVarAlways" type="button">⚙️ Variasi Dadu</button></div>
       <div class="extra-btns">
         <button class="btn-secondary btn-sm" id="viewPropsBtn">🏠 Properti</button>
         <button class="btn-purple btn-sm" id="viewStocksBtn">📈 Saham</button>
@@ -2217,6 +2224,7 @@ let stockOwned = {};     // playerIndex -> { stockId: qty }
 let auction = null;
 let freeParkingPot = 0;  // accumulated parking tax money
 let thirdDiceEnabled = false;
+let thirdDiceMode = 'classic'; // 'classic' atau 'new' (dadu ketiga terbaru)
 const DICE_PRESETS = {
   std: [1,2,3,4,5,6],
   a: [0,1,2,3,3,4],
@@ -2232,13 +2240,14 @@ function diceSetKey(faces) {
   return 'std';
 }
 function bindDiceVarBtn() {
-  const b = document.getElementById('btnDiceVar');
+  const b = document.getElementById('btnDiceVarAlways');
   if (b) b.onclick = () => openDiceVariantModal();
 }
+bindDiceVarBtn();
 function openDiceVariantModal() {
-  if (hasRolledThisTurn || turnSkipped) { showToast('Variasi dadu hanya bisa diganti sebelum melempar!'); return; }
   const p = players[currentPlayer];
   if (!p) return;
+  if (p.isBot) { showToast('Giliran bot — variasi dadu tidak bisa diganti.'); return; }
   const old = document.getElementById('diceVarOverlay');
   if (old) old.remove();
   const cur = [p.diceF1 || diceFaces1, p.diceF2 || diceFaces2];
@@ -2258,7 +2267,7 @@ function openDiceVariantModal() {
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(2,6,23,0.72);display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML = `<div style="background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:16px;width:100%;max-width:360px;max-height:90vh;overflow:auto;color:var(--text)">
     <h3 style="margin:0 0 4px">🎲 Variasi Dadu</h3>
-    <p style="font-size:0.75rem;color:var(--muted);margin:0 0 12px;line-height:1.35">Berlaku untuk lemparanmu (${p.name}) sampai kamu ganti lagi. Sisi 0 = tidak melangkah.</p>
+    <p style="font-size:0.75rem;color:var(--muted);margin:0 0 12px;line-height:1.35">Berlaku untuk lemparanmu (${p.name}) sampai kamu ganti lagi. Bisa diganti kapan saja di gilirannya, juga setelah melempar (berlaku mulai lemparan berikutnya). Sisi 0 = tidak melangkah.</p>
     ${block(1)}${block(2)}
     <div style="display:flex;gap:8px">
       <button class="btn-secondary" id="dvCancel" style="flex:1">Batal</button>
@@ -2276,7 +2285,7 @@ function openDiceVariantModal() {
     }
     p.diceF1 = out[0]; p.diceF2 = out[1];
     log(`${p.name} memilih dadu 1 [${out[0].join(', ')}] & dadu 2 [${out[1].join(', ')}]`, 'important');
-    showToast('🎲 Variasi dadu diganti!');
+    showToast(hasRolledThisTurn ? '🎲 Variasi dadu diganti! Berlaku mulai lemparan berikutnya.' : '🎲 Variasi dadu diganti!');
     ov.remove();
   };
 }
@@ -2286,6 +2295,18 @@ let pendingThirdFlags = { extraRoll: false, skipTurn: false, nearestProp: false 
 let pendingDebt = null; // { amount, toPlayerIdx, reason, afterPay }
 let gameOver = false;   // true setelah ada pemenang (menunggu Main Lagi)
 
+// Dadu ketiga terbaru: 1, 2, 3 (tambah langkah), Pilih Dadu, Properti Terdekat, Lempar Lagi
+// id 3/4/2 dipakai ulang agar logika Pilih Dadu / Properti Terdekat / Lempar Lagi sama dengan mode klasik
+const THIRD_DICE_EFFECTS_NEW = {
+  1: { id: 11, add: 1, name: '+1 Langkah', short: '+1' },
+  2: { id: 12, add: 2, name: '+2 Langkah', short: '+2' },
+  3: { id: 13, add: 3, name: '+3 Langkah', short: '+3' },
+  4: { id: 3, name: 'Pilih Dadu', short: 'Pilih Dadu' },
+  5: { id: 4, name: 'Properti Terdekat', short: 'Properti Terdekat' },
+  6: { id: 2, name: 'Lempar Lagi', short: 'Lempar Lagi' },
+};
+function thirdDiceTable() { return thirdDiceMode === 'new' ? THIRD_DICE_EFFECTS_NEW : THIRD_DICE_EFFECTS; }
+function thirdDiceModeLabel() { return thirdDiceMode === 'new' ? 'Terbaru' : 'Klasik'; }
 const THIRD_DICE_EFFECTS = {
   1: { id: 1, name: '+1 Langkah', short: '+1 Langkah' },
   2: { id: 2, name: 'Lempar Lagi', short: 'Lempar Lagi' },
@@ -2454,6 +2475,9 @@ const STRATEGY_CARDS = [
   { id: 'b4_steal_choose_20pct', name: 'Rampas 20% Pilih', short: '🥷 Pilih 20%', rarity: 'langka', desc: 'Pilih 1 pemain, ambil 20% uangnya (maks Rp200).' },
   { id: 'b4_prev_free', name: 'Tanah Kosong Belakang', short: '🗺️ Mundur Tanah Kosong', rarity: 'epik', desc: 'Mundur ke properti tanpa pemilik terdekat di belakang (Tingkat Luar).' },
   { id: 'b4_prop_tax_small', name: 'Pajak Aset', short: '🏘️ Pajak Aset', rarity: 'biasa', desc: 'Setiap lawan bayar Rp10 per properti miliknya.' },
+  { id: 'buy_coupon', name: 'Kupon Beli', short: '🎫 Kupon Beli', rarity: 'biasa', desc: 'Pembelian tanah langsung berikutnya diskon 15%. Tidak berlaku untuk lelang.' },
+  { id: 'rent_voucher', name: 'Voucher Sewa', short: '🎟️ Voucher Sewa', rarity: 'biasa', desc: 'Sewa berikutnya yang kamu bayar dipotong Rp40 (sekali pakai).' },
+  { id: 'double_bonus', name: 'Bonus Kembar', short: '🎰 Bonus Kembar', rarity: 'biasa', desc: 'Saat kamu melempar double berikutnya, terima Rp80 dari bank.' },
   { id: 'b4_prop_tax', name: 'Pajak Aset+', short: '🏘️ Pajak Aset+', rarity: 'langka', desc: 'Setiap lawan bayar Rp20 per properti miliknya.' },
   { id: 'b4_props_gain_20', name: 'Keuntungan Properti', short: '🏘️ Keuntungan Properti', rarity: 'langka', desc: 'Terima Rp20 per properti milikmu.' },
   { id: 'b4_props_gain_35', name: 'Kekayaan Properti', short: '🏢 Kekayaan Properti', rarity: 'epik', desc: 'Terima Rp35 per properti milikmu.' },
@@ -2466,6 +2490,7 @@ const STRATEGY_CARDS = [
   { id: 'b4_prop_tax_big', name: 'Pajak Aset++', short: '🏘️ Pajak Aset++', rarity: 'epik', desc: 'Setiap lawan bayar Rp35 per properti miliknya.' },
   { id: 'b4_prop_tax_god', name: 'Pajak Kerajaan', short: '👑 Pajak Rp50/Tanah', rarity: 'legendaris', desc: 'Setiap lawan bayar Rp50 per properti miliknya (semua tingkat papan).' },
   { id: 'b4_harvest_god', name: 'Panen Raya', short: '👑 +Rp50/Tanah', rarity: 'legendaris', desc: 'Terima Rp50 per properti milikmu (semua tingkat papan).' },
+  { id: 'fate_dice', name: 'Dadu Takdir', short: '🎯 Dadu Takdir', rarity: 'legendaris', desc: 'Kendalikan nasib: untuk 3 lemparan berikutnya, kamu memilih sendiri angka Dadu 1 dan Dadu 2 (tidak diacak). Dadu ketiga tetap diacak.' },
 ];
 
 // Konfigurasi kartu batch 3 yang butuh target tanah / pemain
@@ -2602,6 +2627,22 @@ function renderPlayerInputs() {
 numSelect.addEventListener('change', renderPlayerInputs);
 renderPlayerInputs();
 
+(function setupThirdDiceMenu() {
+  const tg = document.getElementById('thirdDiceToggle');
+  const sel = document.getElementById('thirdDiceMode');
+  const box = document.getElementById('thirdDiceModeBox');
+  const desc = document.getElementById('thirdDiceDesc');
+  if (!tg || !sel || !box || !desc) return;
+  const D = {
+    classic: 'Jika aktif, setiap lemparan muncul dadu ketiga dengan teks efek:<br><strong>+1 Langkah</strong> · <strong>Lempar Lagi</strong> · <strong>Pilih Dadu</strong> · <strong>Properti Terdekat</strong> · <strong>Skip Giliran</strong> (tidak bergerak) · <strong>Kali Dadu</strong> (mis. 6×6=36)',
+    'new': 'Jika aktif, setiap lemparan muncul dadu ketiga dengan 6 sisi:<br><strong>1</strong> · <strong>2</strong> · <strong>3</strong> (menambah langkah) · <strong>Pilih Dadu</strong> · <strong>Properti Terdekat</strong> · <strong>Lempar Lagi</strong>'
+  };
+  const upd = () => { box.style.display = tg.checked ? 'block' : 'none'; desc.innerHTML = D[sel.value] || D.classic; };
+  tg.addEventListener('change', upd);
+  sel.addEventListener('change', upd);
+  upd();
+})();
+
 document.getElementById('startBtn').addEventListener('click', () => {
   const n = parseInt(numSelect.value);
   const startMoney = parseInt(document.getElementById('startMoney').value) || 1500;
@@ -2633,6 +2674,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
   stockOwned = {};
   freeParkingPot = 0;
   thirdDiceEnabled = !!document.getElementById('thirdDiceToggle').checked;
+  thirdDiceMode = ((document.getElementById('thirdDiceMode') || {}).value === 'new') ? 'new' : 'classic';
   strategiEnabled = !!document.getElementById('strategiToggle').checked;
   {
     const hl = parseInt(document.getElementById('handLimitSelect')?.value, 10);
@@ -2704,7 +2746,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
     if (tierCaptionStart) tierCaptionStart.classList.remove('show');
   }
   updatePlayersPanel();
-  log(`Permainan dimulai dengan ${n} pemain! Modal awal Rp${startMoney}${thirdDiceEnabled ? ' • Dadu Ketiga AKTIF' : ''}${currentMapId === 'dual' ? ' • Peta Dua Tingkat AKTIF' : ''}${currentMapId === 'tri' ? ' • Peta Tiga Tingkat AKTIF' : ''}${currentMapId === 'big96' ? ' • Papan Raksasa 96 Petak AKTIF' : ''}${currentMapId === 'roulette' ? ' • Papan Russian Roulette AKTIF' : ''}${currentMapId === 'acak' ? ' • Papan Acak AKTIF' : ''}`, 'important');
+  log(`Permainan dimulai dengan ${n} pemain! Modal awal Rp${startMoney}${thirdDiceEnabled ? ' • Dadu Ketiga AKTIF (' + thirdDiceModeLabel() + ')' : ''}${currentMapId === 'dual' ? ' • Peta Dua Tingkat AKTIF' : ''}${currentMapId === 'tri' ? ' • Peta Tiga Tingkat AKTIF' : ''}${currentMapId === 'big96' ? ' • Papan Raksasa 96 Petak AKTIF' : ''}${currentMapId === 'roulette' ? ' • Papan Russian Roulette AKTIF' : ''}${currentMapId === 'acak' ? ' • Papan Acak AKTIF' : ''}`, 'important');
   startTurn();
 });
 
@@ -2753,7 +2795,7 @@ function saveGameState() {
     const logs = logEl ? Array.from(logEl.children).slice(0, 60).map(e => [e.className.replace('log-entry', '').trim(), e.textContent]) : [];
     const data = {
       v: 1, ts: Date.now(),
-      currentMapId, strategiEnabled, thirdDiceEnabled, STRAT_HAND_MAX, rouletteBaseMoney,
+      currentMapId, strategiEnabled, thirdDiceEnabled, thirdDiceMode, STRAT_HAND_MAX, rouletteBaseMoney,
       currentPlayer, players, owned, mortgaged, houses, stockOwned,
       ownedInner, mortgagedInner, housesInner, freeParkingPot, landEffects,
       stratUniqueTaken, houseCostGlobal, auctionPaid, diceFaces1, diceFaces2, logs
@@ -2795,6 +2837,7 @@ function resumeSavedGame() {
   setupMapData();
   strategiEnabled = !!d.strategiEnabled;
   thirdDiceEnabled = !!d.thirdDiceEnabled;
+  thirdDiceMode = d.thirdDiceMode === 'new' ? 'new' : 'classic';
   STRAT_HAND_MAX = Number.isFinite(d.STRAT_HAND_MAX) ? d.STRAT_HAND_MAX : 5;
   rouletteBaseMoney = d.rouletteBaseMoney || 1500;
   players = d.players;
@@ -3273,7 +3316,7 @@ function updatePlayersPanel() {
     const stockCount = Object.values(stockOwned[i] || {}).reduce((a,b)=>a+b, 0);
     const houseCount = p.props.reduce((a, id) => a + (houses[id] || 0), 0);
     card.innerHTML = `
-      <div class="name"><span class="player-avatar">${p.avatar || '👤'}</span> ${p.name}${p.isBot ? ' 🤖' : ''}</div>
+      <div class="name"><span class="player-avatar">${p.avatar || '👤'}</span> ${p.name}${p.isBot ? ' 🤖' : ''}${(p.fateRolls || 0) > 0 && !p.bankrupt ? ' 🎯×' + p.fateRolls : ''}${p.buyCoupon && !p.bankrupt ? ' 🎫' : ''}${p.rentVoucher && !p.bankrupt ? ' 🎟️' : ''}${p.doubleBonus && !p.bankrupt ? ' 🎰' : ''}</div>
       <div class="money">Rp${p.money}</div>
       ${(p.immunityTurns || 0) > 0 && !p.bankrupt ? '<div class="immune-badge">🛡️ IMUNITAS</div>' : ''}
       <div class="props">${p.props.length} prop${isMulti() ? ` • ${(p.propsInner||[]).length}🚇` : ''} • ${houseCount}🏠 • ${strategiEnabled ? `⚡${p.energy||0}/${STRAT_ENERGY_MAX} ${(p.hand||[]).length}/${handLimitLabel()}🃏 ` : ''}${p.inJail ? '🔒' : ''} ${(p.skipTurns||0)>0?'💣':''} ${isMulti() && p.level === 'inner' ? '🕳️' : ''}</div>
@@ -3479,6 +3522,7 @@ function startTurn() {
   pendingThirdFlags = { extraRoll: false, skipTurn: false, nearestProp: false };
   const effectEl = document.getElementById('thirdDiceEffect');
   if (effectEl && thirdDiceEnabled) effectEl.textContent = 'Dadu ke-3 siap';
+  { const oldDv = document.getElementById('diceVarOverlay'); if (oldDv) oldDv.remove(); }
 
   // +1 kartu & +2 energi mulai giliran ke-2 (giliran pertama: hanya energi awal 10)
   p.turnsPlayed = (p.turnsPlayed || 0) + 1;
@@ -3526,7 +3570,6 @@ function startTurn() {
     btns.innerHTML = `
       <button class="btn-gold btn-anim-gold" id="btnPayJail">Bayar Rp100</button>
       <button class="btn-primary btn-anim-pulse" id="btnRollJail">Lempar (Double)</button>
-      <button class="btn-secondary" id="btnDiceVar">⚙️ Variasi Dadu</button>
       ${(p.hasJailFree || 0) > 0 ? '<button class="btn-success" id="btnFreeJail">🔓 Pakai Kartu Bebas</button>' : ''}
     `;
     bindDiceVarBtn();
@@ -3573,7 +3616,7 @@ function enableRoll(force) {
   waitingAction = false;
   // Setelah berpindah lewat kartu strategi, giliran ini tidak melempar dadu (kecuali Lempar Lagi / force)
   if (stratMovedNoRoll && !force) { showEndTurnButton(); return; }
-  document.getElementById('actionBtns').innerHTML = `<button class="btn-primary btn-anim-pulse" id="btnRoll">🎲 Lempar Dadu</button><button class="btn-secondary" id="btnDiceVar">⚙️ Variasi Dadu</button>`;
+  document.getElementById('actionBtns').innerHTML = `<button class="btn-primary btn-anim-pulse" id="btnRoll">🎲 Lempar Dadu</button>`;
   bindDiceVarBtn();
   document.getElementById('btnRoll').onclick = (e) => {
     animateButtonPress(e.currentTarget);
@@ -3581,11 +3624,34 @@ function enableRoll(force) {
   };
 }
 
-function rollDice() {
+// Dadu Takdir: pemain memilih angka Dadu 1 lalu Dadu 2 (sisi sesuai variasi dadunya), lalu dadu dilempar dengan angka itu
+function openFateDicePicker() {
+  const p = players[currentPlayer];
+  const F1 = p.diceF1 || diceFaces1, F2 = p.diceF2 || diceFaces2;
+  const uniq = (a) => [...new Set(a)].sort((x, y) => x - y);
+  waitingAction = true;
+  setStatus(`${p.name}: 🎯 Dadu Takdir — pilih angka dadu (sisa ${p.fateRolls}×)`);
+  const step2 = (d1) => showBoardPropPopup(
+    '🎯 Dadu Takdir',
+    `Dadu 1: <strong>${d1}</strong><br>Pilih angka <strong>Dadu 2</strong>:`,
+    uniq(F2).map(v => ({ text: String(v), class: 'btn-gold', onClick: () => { waitingAction = false; rollDice({ d1, d2: v }); } }))
+  );
+  showBoardPropPopup(
+    '🎯 Dadu Takdir',
+    `Sisa ${p.fateRolls}× lemparan terkendali.<br>Pilih angka <strong>Dadu 1</strong>:`,
+    uniq(F1).map(v => ({ text: String(v), class: 'btn-primary', onClick: () => { step2(v); } }))
+  );
+}
+
+function rollDice(forced) {
   if (waitingAction || turnSkipped) return;
+  { const fp = players[currentPlayer];
+    if (!(forced && typeof forced === 'object' && 'd1' in forced) && fp && !fp.isBot && (fp.fateRolls || 0) > 0) { openFateDicePicker(); return; } }
+  if (!(forced && typeof forced === 'object' && 'd1' in forced)) forced = null;
   hasRolledThisTurn = true;
   stratMovedNoRoll = false;
   const rollP = players[currentPlayer];
+  if (forced) { rollP.fateRolls = Math.max(0, (rollP.fateRolls || 0) - 1); updatePlayersPanel(); }
   const F1 = (rollP && rollP.diceF1) || diceFaces1;
   const F2 = (rollP && rollP.diceF2) || diceFaces2;
   const d1 = document.getElementById('die1');
@@ -3606,21 +3672,22 @@ function rollDice() {
     d2.textContent = rollFace(F2);
     if (thirdDiceEnabled && d3) {
       const rnd = Math.ceil(Math.random()*6);
-      d3.textContent = THIRD_DICE_EFFECTS[rnd].short;
+      d3.textContent = thirdDiceTable()[rnd].short;
     }
     rolls++;
     if (rolls > 8) {
       clearInterval(interval);
-      dice1 = rollFace(F1);
-      dice2 = rollFace(F2);
-      log(`${rollP.name} memakai dadu [${F1.join(',')}] & [${F2.join(',')}]`);
+      dice1 = forced ? forced.d1 : rollFace(F1);
+      dice2 = forced ? forced.d2 : rollFace(F2);
+      if (forced) log(`🎯 ${rollP.name} memakai Dadu Takdir: ${dice1} & ${dice2} (sisa ${rollP.fateRolls}×)`, 'important');
+      else log(`${rollP.name} memakai dadu [${F1.join(',')}] & [${F2.join(',')}]`);
       d1.textContent = dice1;
       d2.textContent = dice2;
       d1.classList.remove('rolling');
       d2.classList.remove('rolling');
       if (thirdDiceEnabled) {
         dice3 = Math.ceil(Math.random()*6);
-        thirdDiceEffect = THIRD_DICE_EFFECTS[dice3];
+        thirdDiceEffect = thirdDiceTable()[dice3];
         if (d3) {
           d3.textContent = thirdDiceEffect.short;
           d3.classList.remove('rolling');
@@ -3641,12 +3708,23 @@ function handleDiceResult() {
   const p = players[currentPlayer];
   if (currentMapId === 'big96') showToast(`🎲 ${dice1} + ${dice2} = ${dice1 + dice2}`);
   const isDouble = dice1 === dice2;
+  if (isDouble && p.doubleBonus) {
+    p.doubleBonus = false;
+    p.money += 80; moneyAnim(currentPlayer, 80);
+    log(`🎰 ${p.name} dapat double — Bonus Kembar +Rp80`, 'money');
+    showToast('🎰 Bonus Kembar +Rp80!');
+    updatePlayersPanel();
+  }
   let total = dice1 + dice2;
   let logMsg = `${p.name} melempar ${dice1}+${dice2}=${total}${isDouble ? ' (DOUBLE!)' : ''}`;
 
   // Apply third-dice modifiers that affect step count / choice BEFORE moving
   if (thirdDiceEnabled && thirdDiceEffect) {
-    if (thirdDiceEffect.id === 1) {
+    if (thirdDiceEffect.add) {
+      total += thirdDiceEffect.add;
+      logMsg += ` → +${thirdDiceEffect.add} = ${total}`;
+      log(`${p.name}: Dadu ke-3 +${thirdDiceEffect.add} langkah → total ${total}`, 'important');
+    } else if (thirdDiceEffect.id === 1) {
       total += 1;
       logMsg += ` → +1 = ${total}`;
       log(`${p.name}: Dadu ke-3 +1 langkah → total ${total}`, 'important');
@@ -3896,6 +3974,27 @@ function getInnerRent(sp, pos) {
   return rent;
 }
 
+// Voucher Sewa: sewa berikutnya yang dibayar pemain dipotong Rp40 (sekali pakai)
+function rentVoucherRent(p, raw) { return p && p.rentVoucher && raw > 0 ? Math.max(0, raw - 40) : raw; }
+function rentVoucherLabel(raw, eff) {
+  return eff === raw ? `<strong style="color:#ef4444">Rp${raw}</strong>` : `<s>Rp${raw}</s> <strong style="color:#ef4444">Rp${eff}</strong> 🎟️`;
+}
+function consumeRentVoucher(p, raw, eff) {
+  if (p && p.rentVoucher && raw > 0) { p.rentVoucher = false; log(`🎟️ ${p.name} memakai Voucher Sewa: hemat Rp${raw - eff}`, 'money'); updatePlayersPanel(); }
+}
+
+// Kupon Beli: diskon 15% untuk pembelian tanah langsung berikutnya (bukan lelang)
+function buyPriceFor(p, price) {
+  return p && p.buyCoupon ? Math.max(0, price - Math.floor(price * 0.15)) : price;
+}
+function buyPriceLabel(p, price) {
+  const eff = buyPriceFor(p, price);
+  return eff === price ? `Harga: <strong>Rp${price}</strong>` : `Harga: <s>Rp${price}</s> <strong>Rp${eff}</strong> 🎫`;
+}
+function consumeBuyCoupon(p, price, eff) {
+  if (p && p.buyCoupon) { p.buyCoupon = false; log(`🎫 ${p.name} memakai Kupon Beli: hemat Rp${price - eff}`, 'money'); }
+}
+
 function handleInnerProperty() {
   const p = players[currentPlayer];
   const sp = INNER_SPACES[p.pos];
@@ -3903,19 +4002,21 @@ function handleInnerProperty() {
   if (owner === undefined) {
     showBoardPropPopup(
       `Beli ${sp.name}? (Dalam)`,
-      `Harga: <strong>Rp${sp.price}</strong><br>${sp.type === 'util' ? 'Utilitas Dalam (sewa dari dadu)' : `Sewa dasar: Rp${sp.rent}`}`,
+      `${buyPriceLabel(p, sp.price)}<br>${sp.type === 'util' ? 'Utilitas Dalam (sewa dari dadu)' : `Sewa dasar: Rp${sp.rent}`}`,
       [
         {
           text: '✅ Beli', class: 'btn-success', onClick: () => {
-            if (p.money < sp.price) {
+            const pay = buyPriceFor(p, sp.price);
+            if (p.money < pay) {
               showToast('Uang tidak cukup untuk membeli! Pilih Lelang.');
               return POPUP_STAY;
             }
-            p.money -= sp.price;
-            moneyAnim(currentPlayer, -sp.price);
+            p.money -= pay;
+            moneyAnim(currentPlayer, -pay);
             ownedInner[p.pos] = currentPlayer;
             p.propsInner.push(p.pos);
-            log(`${p.name} membeli ${sp.name} (Dalam) seharga Rp${sp.price}`, 'money');
+            log(`${p.name} membeli ${sp.name} (Dalam) seharga Rp${pay}`, 'money');
+            consumeBuyCoupon(p, sp.price, pay);
             updatePlayersPanel();
             updateOwnerBars();
             endTurnOrDouble();
@@ -3944,7 +4045,8 @@ function handleInnerProperty() {
       endTurnOrDouble();
       return;
     }
-    const rent = noRentReason ? 0 : getInnerRent(sp, p.pos);
+    const rentRaw = noRentReason ? 0 : getInnerRent(sp, p.pos);
+    const rent = rentVoucherRent(p, rentRaw);
     const ownerP = players[owner];
     const forcePrice = getForcedBuyPriceInner(p.pos);
     const hCount = housesInner[p.pos] || 0;
@@ -3959,7 +4061,7 @@ function handleInnerProperty() {
     showBoardPropPopup(
       `${sp.name} (Dalam)`,
       `Milik <strong>${ownerP.name}</strong>${buildInfo}${effInfo}<br>
-       ${noRentReason ? noRentLine(noRentReason) : 'Sewa: <strong style="color:#ef4444">Rp' + rent + '</strong>'}<br>
+       ${noRentReason ? noRentLine(noRentReason) : 'Sewa: ' + rentVoucherLabel(rentRaw, rent)}<br>
        Beli Paksa: <strong style="color:#fbbf24">Rp${forcePrice}</strong>`,
       [
         {
@@ -3967,6 +4069,8 @@ function handleInnerProperty() {
           class: noRentReason ? 'btn-secondary' : 'btn-danger',
           onClick: () => {
             if (noRentReason) { endTurnOrDouble(); return; }
+            consumeRentVoucher(p, rentRaw, rent);
+            if (rent <= 0) { clearLandEffectAfterRent(p.pos, 'inner'); endTurnOrDouble(); return; }
             const landPos = p.pos;
             const ok = tryPay(rent, owner, `Sewa ${sp.name} (Dalam)`, () => {
               clearLandEffectAfterRent(landPos, 'inner');
@@ -4252,21 +4356,23 @@ function handleProperty() {
     const rentInfo = sp.rent ? `Sewa dasar: Rp${sp.rent}` : (sp.type === 'rail' ? 'Sewa stasiun' : 'Utilitas');
     showBoardPropPopup(
       `Beli ${sp.name}?`,
-      `Harga: <strong>Rp${sp.price}</strong><br>${rentInfo}`,
+      `${buyPriceLabel(p, sp.price)}<br>${rentInfo}`,
       [
         {
           text: '✅ Beli',
           class: 'btn-success',
           onClick: () => {
-            if (p.money < sp.price) {
+            const pay = buyPriceFor(p, sp.price);
+            if (p.money < pay) {
               showToast('Uang tidak cukup untuk membeli! Pilih Lelang.');
               return POPUP_STAY;
             }
-            p.money -= sp.price;
-            moneyAnim(currentPlayer, -sp.price);
+            p.money -= pay;
+            moneyAnim(currentPlayer, -pay);
             owned[p.pos] = currentPlayer;
             p.props.push(p.pos);
-            log(`${p.name} membeli ${sp.name} seharga Rp${sp.price}`, 'money');
+            log(`${p.name} membeli ${sp.name} seharga Rp${pay}`, 'money');
+            consumeBuyCoupon(p, sp.price, pay);
             updatePlayersPanel();
             updateOwnerBars();
             waitingAction = false;
@@ -4312,7 +4418,8 @@ function handleProperty() {
       endTurnOrDouble();
       return;
     }
-    const rent = noRentReason ? 0 : getRent(sp, p.pos);
+    const rentRaw = noRentReason ? 0 : getRent(sp, p.pos);
+    const rent = rentVoucherRent(p, rentRaw);
     const ownerP = players[owner];
     const forcePrice = getForcedBuyPrice(p.pos);
     const hCount = houses[p.pos] || 0;
@@ -4327,7 +4434,7 @@ function handleProperty() {
     showBoardPropPopup(
       `${sp.name}`,
       `Milik <strong>${ownerP.name}</strong>${buildInfo}${effInfo}<br>
-       ${noRentReason ? noRentLine(noRentReason) : 'Sewa: <strong style="color:#ef4444">Rp' + rent + '</strong>'}<br>
+       ${noRentReason ? noRentLine(noRentReason) : 'Sewa: ' + rentVoucherLabel(rentRaw, rent)}<br>
        Beli Paksa: <strong style="color:#fbbf24">Rp${forcePrice}</strong>`,
       [
         {
@@ -4336,6 +4443,8 @@ function handleProperty() {
           onClick: () => {
             if (noRentReason) { waitingAction = false; endTurnOrDouble(); return; }
             waitingAction = false;
+            consumeRentVoucher(p, rentRaw, rent);
+            if (rent <= 0) { clearLandEffectAfterRent(p.pos); endTurnOrDouble(); return; }
             const landPos = p.pos;
             const ok = tryPay(rent, owner, `Sewa ${sp.name}`, () => {
               clearLandEffectAfterRent(landPos);
@@ -6601,6 +6710,38 @@ function applyStratCardCore(cardId, opts) {
     return;
   }
 
+  if (cardId === 'rent_voucher' || cardId === 'double_bonus') {
+    const isV = cardId === 'rent_voucher';
+    if (isV ? p.rentVoucher : p.doubleBonus) {
+      showToast(isV ? '🎟️ Voucher Sewa sudah aktif — pakai dulu saat bayar sewa.' : '🎰 Bonus Kembar sudah aktif — tunggu sampai kamu dapat double.');
+      p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI(); updatePlayersPanel();
+      return;
+    }
+    if (isV) { p.rentVoucher = true; log(`${p.name} memakai Voucher Sewa — sewa berikutnya yang dibayar dipotong Rp40.`, 'important'); showToast('🎟️ Voucher Sewa aktif!'); }
+    else { p.doubleBonus = true; log(`${p.name} memakai Bonus Kembar — double berikutnya dapat Rp80 dari bank.`, 'important'); showToast('🎰 Bonus Kembar aktif!'); }
+    updatePlayersPanel();
+    return;
+  }
+  if (cardId === 'buy_coupon') {
+    if (p.buyCoupon) {
+      showToast('🎫 Kupon Beli sudah aktif — pakai dulu untuk membeli tanah.');
+      p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI(); updatePlayersPanel();
+      return;
+    }
+    p.buyCoupon = true;
+    log(`${p.name} memakai Kupon Beli — pembelian tanah langsung berikutnya diskon 15%.`, 'important');
+    showToast('🎫 Kupon Beli aktif!');
+    updatePlayersPanel();
+    return;
+  }
+  if (cardId === 'fate_dice') {
+    p.fateRolls = 3;
+    log(`${p.name} memakai Dadu Takdir — 3 lemparan berikutnya angka dadu dipilih sendiri!`, 'important');
+    showToast('🎯 Dadu Takdir aktif: 3 lemparan terkendali!');
+    updatePlayersPanel();
+    return;
+  }
+
   // ===== HANDLER BATCH 3 (50 kartu) =====
   if (cardId.startsWith('b3_') || cardId.startsWith('b4_')) {
     const refund = (msg) => { showToast(msg); p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI(); updatePlayersPanel(); };
@@ -6909,18 +7050,18 @@ function applyStratCardCore(cardId, opts) {
       case 'b4_forward9': if (!outerOnly()) return; moveN(9); return;
       case 'b4_props_bonus': {
         const n = (p.props || []).length + (p.propsInner || []).length; if (!n) { refund('Kamu belum punya properti'); return; }
-        gain(n * 10, `bonus aset ${n} properti`); return;
+        gain(n * 10, `bonus aset ${n} properti × Rp10 = +Rp${n * 10}`); return;
       }
       case 'b4_props_gain_20':
       case 'b4_props_gain_35': {
         const per = cardId === 'b4_props_gain_35' ? 35 : 20;
         const n = (p.props || []).length + (p.propsInner || []).length; if (!n) { refund('Kamu belum punya properti'); return; }
-        gain(n * per, `keuntungan ${n} properti`); return;
+        gain(n * per, `keuntungan ${n} properti × Rp${per} = +Rp${n * per}`); return;
       }
       case 'b4_rail_bonus': {
         const n = (p.props || []).filter(id => SPACES[id] && SPACES[id].type === 'rail').length;
         if (!n) { refund('Kamu belum punya stasiun'); return; }
-        gain(n * 30, `bonus ${n} stasiun`); return;
+        gain(n * 30, `bonus ${n} stasiun × Rp30 = +Rp${n * 30}`); return;
       }
       case 'b4_coin_flip': {
         if (Math.random() < 0.5) { gain(150, 'Koin: menang Rp150!'); showToast('🪙 Menang Rp150!'); }
@@ -6994,7 +7135,7 @@ function applyStratCardCore(cardId, opts) {
       case 'b4_harvest_god': {
         const n = (p.props || []).length + (p.propsInner || []).length;
         if (!n) { refund('Kamu belum punya properti'); return; }
-        gain(n * 50, `panen raya ${n} properti`); return;
+        gain(n * 50, `panen raya ${n} properti × Rp50 = +Rp${n * 50}`); return;
       }
       case 'b4_prop_tax_small':
       case 'b4_prop_tax':
@@ -8978,6 +9119,7 @@ window.sellHouse = sellHouse;
       n, pl,
       money: parseInt(($('startMoney') || {}).value, 10) || 0,
       td: !!($('thirdDiceToggle') || {}).checked,
+      tm: (started ? thirdDiceMode : (($('thirdDiceMode') || {}).value === 'new' ? 'new' : 'classic')),
       st: !!($('strategiToggle') || {}).checked,
       hl: hl ? parseInt(hl.value, 10) : 5,
       map: opt ? opt.textContent.trim() : ''
@@ -9162,6 +9304,16 @@ window.sellHouse = sellHouse;
     if (!(t.closest('#game') || t.closest('.modal-overlay') || t.closest('body > [id]'))) return;
     e.stopPropagation(); e.preventDefault();
     toast('⏳ Bukan giliranmu');
+  }, true);
+  // Penjaga keyboard host: panah/ketik pada dropdown atau input di popup game (mis. Variasi Dadu) diblok saat bukan giliran host.
+  // (Pengisian dari tamu masuk lewat hostMsg 'val' dan tidak memakai event keyboard asli.)
+  document.addEventListener('keydown', (e) => {
+    if (OL.role !== 'host' || !OL.peers.size || !e.isTrusted) return;
+    if (!gameStarted() || !remoteSeatConnected(actorIdx())) return;
+    const t = e.target; if (!t || !t.closest || !isTextLike(t)) return;
+    if (t.closest('[data-ol]')) return;
+    if (!(t.closest('#game') || t.closest('.modal-overlay') || t.closest('body > [id]'))) return;
+    e.stopPropagation(); e.preventDefault();
   }, true);
   function startHostLoops() {
     const mo = new MutationObserver((recs) => {
@@ -9492,6 +9644,15 @@ window.sellHouse = sellHouse;
     const p = pathOf(tgt); if (!p) return;
     guestSend({ t: 'click', p, x: (tgt.textContent || '').trim().slice(0, 24) });
   }, true);
+  function guestNotMyTurnField(e) {
+    if (OL.role !== 'guest' || !OL.guest || OL.guest.status !== 'open') return;
+    const t = e.target; if (!t || !t.closest || !isTextLike(t)) return;
+    if (t.closest('[data-ol]') || t.closest('#zoomBar, #focusBar')) return;
+    if (!OL.gmeta || !OL.gmeta.st || OL.gmeta.actor === OL.seat) return;
+    e.stopPropagation(); e.preventDefault();
+  }
+  document.addEventListener('mousedown', guestNotMyTurnField, true);
+  document.addEventListener('keydown', guestNotMyTurnField, true);
   function formEvt(e) {
     if (OL.role !== 'guest' || !OL.guest || OL.guest.status !== 'open') return;
     const t = e.target; if (!t || !t.closest || t.closest('[data-ol]') || t.closest('#zoomBar, #focusBar')) return;
@@ -9700,7 +9861,7 @@ window.sellHouse = sellHouse;
       <div class="ol-irow"><span>🗺️ Papan</span><span>${esc(r.map || '-')}</span></div>
       <div class="ol-irow"><span>👥 Jumlah pemain</span><span>${r.n}</span></div>
       <div class="ol-irow"><span>💰 Modal awal</span><span>${money}</span></div>
-      <div class="ol-irow"><span>🎲 Dadu ketiga</span>${onoff(r.td, r.td ? 'Aktif' : 'Nonaktif')}</div>
+      <div class="ol-irow"><span>🎲 Dadu ketiga</span>${onoff(r.td, r.td ? 'Aktif · ' + (r.tm === 'new' ? 'Terbaru' : 'Klasik') : 'Nonaktif')}</div>
       <div class="ol-irow"><span>🃏 Kartu strategi</span>${onoff(r.st, r.st ? 'Aktif (simpan maks. ' + hl + ')' : 'Nonaktif')}</div></div>`;
     h += '<div class="ol-sub" style="margin-top:10px">Pemain:</div>';
     (r.pl || []).forEach((p, i) => {
@@ -9875,7 +10036,7 @@ window.sellHouse = sellHouse;
   var KEY = 'mn_tutorial_seen';
   var STEPS = [
     {i:'🌍', t:'Selamat Datang!', b:'Tujuan permainan: jadi pemain <b>terakhir yang tidak bangkrut</b>. Beli tanah, kumpulkan sewa, dan bangun properti sampai lawan kehabisan uang.<br><br>Tutorial ini singkat dan bisa dilewati kapan saja.'},
-    {i:'🎲', t:'Giliran & Dadu', b:'Pada giliranmu, tekan tombol <b>Lempar Dadu</b> di panel samping, lalu bidak berjalan sesuai angka dadu.<ul><li>Melewati <b>MULAI</b> memberi kamu hadiah uang.</li><li>Jika dadu ketiga aktif, ada efek spesial seperti +1 Langkah, Lempar Lagi, atau Properti Terdekat.</li></ul>'},
+    {i:'🎲', t:'Giliran & Dadu', b:'Pada giliranmu, tekan tombol <b>Lempar Dadu</b> di panel samping, lalu bidak berjalan sesuai angka dadu.<ul><li>Melewati <b>MULAI</b> memberi kamu hadiah uang.</li><li>Jika dadu ketiga aktif, ada efek spesial seperti +1 Langkah, Lempar Lagi, atau Properti Terdekat (mode dadu ketiga dipilih di menu utama).</li><li>Tombol <b>Variasi Dadu</b> bisa dipakai kapan saja di gilirannya, juga setelah melempar (berlaku mulai lemparan berikutnya).</li></ul>'},
     {i:'🏠', t:'Membeli Tanah', b:'Mendarat di tanah tanpa pemilik, kamu bisa <b>membelinya</b>. Jika tidak mau, tanah bisa <b>dilelang</b> dan semua pemain boleh menawar.<ul><li>Mendarat di tanah lawan berarti <b>bayar sewa</b>.</li><li>Kumpulkan satu grup warna agar bisa membangun.</li></ul>'},
     {i:'🏗️', t:'Rumah, Hotel & Sewa', b:'Bangun <b>rumah</b> lalu upgrade jadi <b>hotel</b> untuk menaikkan sewa. Buka menu <b>🏠 Properti</b> untuk membangun atau <b>menggadai</b> tanah saat butuh uang cepat.<ul><li>Tanah yang digadai tidak menarik sewa.</li><li><b>Beli Paksa</b>: ambil tanah lawan dengan membayar harga lebih tinggi.</li></ul>'},
     {i:'🤝', t:'Dagang & Saham', b:'Tombol <b>🤝 Dagang</b> dipakai untuk bertukar tanah atau uang dengan pemain lain. Tombol <b>📈 Saham</b> untuk membeli saham yang memberi keuntungan tambahan.'},
