@@ -2267,7 +2267,7 @@ function openDiceVariantModal() {
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(2,6,23,0.72);display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML = `<div style="background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:16px;width:100%;max-width:360px;max-height:90vh;overflow:auto;color:var(--text)">
     <h3 style="margin:0 0 4px">🎲 Variasi Dadu</h3>
-    <p style="font-size:0.75rem;color:var(--muted);margin:0 0 12px;line-height:1.35">Berlaku untuk lemparanmu (${p.name}) sampai kamu ganti lagi. Bisa diganti kapan saja di gilirannya, juga setelah melempar (berlaku mulai lemparan berikutnya). Sisi 0 = tidak melangkah.</p>
+    <div style="height:8px"></div>
     ${block(1)}${block(2)}
     <div style="display:flex;gap:8px">
       <button class="btn-secondary" id="dvCancel" style="flex:1">Batal</button>
@@ -2275,8 +2275,10 @@ function openDiceVariantModal() {
     </div>
   </div>`;
   document.body.appendChild(ov);
-  document.getElementById('dvCancel').onclick = () => ov.remove();
-  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+  // satu jalur tutup untuk Batal, Pakai, dan tap area kosong; langsung minta sinkron ke pemain lain (mode online)
+  const closeDv = () => { ov.remove(); try { if (window.__OL && window.__OL.syncDyn) window.__OL.syncDyn(); } catch (e) {} };
+  document.getElementById('dvCancel').onclick = closeDv;
+  ov.addEventListener('click', (e) => { if (e.target === ov) closeDv(); });
   document.getElementById('dvOk').onclick = () => {
     const out = [];
     for (const n of [1,2]) {
@@ -2286,7 +2288,7 @@ function openDiceVariantModal() {
     p.diceF1 = out[0]; p.diceF2 = out[1];
     log(`${p.name} memilih dadu 1 [${out[0].join(', ')}] & dadu 2 [${out[1].join(', ')}]`, 'important');
     showToast(hasRolledThisTurn ? '🎲 Variasi dadu diganti! Berlaku mulai lemparan berikutnya.' : '🎲 Variasi dadu diganti!');
-    ov.remove();
+    closeDv();
   };
 }
 function rollFace(faces) { return faces[Math.floor(Math.random() * faces.length)]; }
@@ -2359,7 +2361,7 @@ const STRATEGY_CARDS = [
   { id: 'immunity', name: 'Imunitas + Lempar', short: '🛡️ Imunitas', rarity: 'langka', desc: 'Perlindungan 1 giliran dari sewa. Lalu lempar dadu.' },
   { id: 'trap', name: 'Pasang Jebakan', short: '💣 Jebakan×2', rarity: 'langka', desc: 'Jebakan di tanah: korban skip 2 giliran (1x).' },
   { id: 'wheel', name: 'Roda Keberuntungan', short: '🎡 Roda', rarity: 'biasa', desc: 'Putar Roda Keberuntungan sekarang.' },
-  { id: 'avoid_bankrupt', name: 'Hindari Bangkrut', short: '💚 Hindari Bangkrut', rarity: 'legendaris', desc: 'Saat bangkrut, hidup lagi dengan Rp500. Bisa dipakai kapan saja: jika uangmu di bawah Rp500, jadikan Rp500. Unique.' },
+  { id: 'avoid_bankrupt', name: 'Hindari Bangkrut', short: '💚 Hindari Bangkrut', rarity: 'legendaris', desc: 'Saat bangkrut, hidup lagi dengan Rp500. Unique.' },
   { id: 'cheap_house', name: 'Upgrade Murah', short: '🏠 Upgrade −50%', rarity: 'epik', desc: 'Biaya rumah/hotel −50% untuk semua pemain selamanya. Unique.' },
   { id: 'expensive_house', name: 'Upgrade Mahal', short: '🏠 Upgrade +50%', rarity: 'epik', desc: 'Biaya rumah/hotel +50% untuk semua pemain selamanya. Unique.' },
   { id: 'jail_player', name: 'Masukkan ke Penjara', short: '🔒 Penjara', rarity: 'langka', desc: 'Pilih pemain, masukkan ke Penjara.' },
@@ -5628,15 +5630,8 @@ function tryUseStratCard(handIdx) {
   if (p.hand[handIdx] === 'avoid_bankrupt') {
     // Saat krisis keuangan: hidup lagi dengan Rp500 (gratis energi)
     if (pendingDebt) { document.getElementById('debtUseAvoid').click(); return; }
-    // Di luar krisis: bisa dipakai kapan saja — jika uang di bawah Rp500, jadikan Rp500
-    if (auction) { showToast('🔨 Saat lelang hanya kartu penambah uang yang bisa dipakai.'); return; }
-    if (p.money >= 500) { showToast('💚 Uangmu sudah Rp500 atau lebih — kartu ini belum perlu dipakai.'); return; }
-    if ((p.energy || 0) < stratCost('avoid_bankrupt')) {
-      showToast(`Butuh ⚡${stratCost('avoid_bankrupt')}! (punya ${p.energy})`);
-      return;
-    }
-    consumeStratCard(handIdx);
-    applyStratCard('avoid_bankrupt', null);
+    // Di luar krisis keuangan kartu ini tidak bisa dipakai (hanya aktif saat bangkrut)
+    showToast('💚 Kartu ini hanya aktif saat kamu terancam bangkrut.');
     return;
   }
   if (auction && !AUCTION_MONEY_CARDS.has(p.hand[handIdx])) { showToast('🔨 Saat lelang hanya kartu penambah uang yang bisa dipakai.'); return; }
@@ -7283,7 +7278,7 @@ const WHEEL_PRIZES = [
   { id: 'p100', text: '+Rp100', label: '+100', weight: 1 },
   { id: 'm100', text: '-Rp100', label: '-100', weight: 1 },
   { id: 'm200', text: '-Rp200', label: '-200', weight: 1 },
-  { id: 'eq1000', text: 'Uang menjadi Rp1.000', label: '=1000', weight: 1 },
+  { id: 'm500', text: '-Rp500', label: '-500', weight: 1 },
   { id: 'cut20', text: 'Uang berkurang 20%', label: '-20%', weight: 1 },
   { id: 'plus2h', text: '+2 Rumah (jika punya monopoli warna)', label: '+2 rumah', weight: 1 },
   { id: 'minus2h', text: '-2 Rumah (jika punya monopoli warna)', label: '-2 rumah', weight: 1 },
@@ -7396,13 +7391,12 @@ function applyWheelPrize(prize) {
       log(`${p.name} Roda: -Rp200`, 'rent');
       endTurnOrDouble();
     }
-  } else if (prize.id === 'eq1000') {
-    const diff = 1000 - p.money;
-    p.money = 1000;
-    moneyAnim(currentPlayer, diff);
-    log(`${p.name} Roda: uang menjadi Rp1.000`, 'important');
-    updatePlayersPanel();
-    endTurnOrDouble();
+  } else if (prize.id === 'm500') {
+    const ok = tryPay(500, null, 'Roda: -Rp500', () => endTurnOrDouble());
+    if (ok) {
+      log(`${p.name} Roda: -Rp500`, 'rent');
+      endTurnOrDouble();
+    }
   } else if (prize.id === 'cut20') {
     const cut = Math.floor(p.money * 0.2);
     p.money -= cut;
@@ -9020,7 +9014,14 @@ window.sellHouse = sellHouse;
     return 'J' + s;
   }
   async function unpack(str) { return str[0] === 'J' ? JSON.parse(str.slice(1)) : JSON.parse(await inflate(unb64(str.slice(1)))); }
-  async function sendDC(dc, obj) {
+  // Antrean per koneksi: pesan dikirim sesuai urutan. Tanpa ini pesan besar (dikompres, lebih lama) bisa
+  // disalip pesan kecil, mis. "popup dihapus" tiba lebih dulu daripada "popup muncul" -> popup tersangkut di layar pemain lain.
+  function sendDC(dc, obj) {
+    if (!dc) return Promise.resolve();
+    const cur = (dc._sq || Promise.resolve()).then(() => sendDCNow(dc, obj)).catch(() => {});
+    dc._sq = cur; return cur;
+  }
+  async function sendDCNow(dc, obj) {
     if (!dc || dc.readyState !== 'open') return;
     const data = await pack(obj), id = (++msgSeq) + '', n = Math.max(1, Math.ceil(data.length / CHUNK));
     for (let k = 0; k < n; k++) { try { dc.send(JSON.stringify({ i: id, k, n, d: data.slice(k * CHUNK, (k + 1) * CHUNK) })); } catch (e) { return; } }
@@ -9156,17 +9157,22 @@ window.sellHouse = sellHouse;
     if (OL.role !== 'host' || !OL.peers.size) return;
     const regs = regionList(), msg = { t: 'st', r: {} };
     let any = false;
+    // region dinamis (popup di body) yang sudah hilang: buang cache-nya agar popup yang sama bisa muncul lagi di pemain lain
+    { const live = new Set(regs.map((r) => r[0])); Object.keys(OL.last).forEach((k) => { if (k[0] === 'd' && !live.has(k)) delete OL.last[k]; }); }
     for (const [k, el] of regs) {
       if (!forceAll && !OL.dirty.has(k) && OL.last[k] !== undefined) continue;
       const h = serialize(el);
       if (OL.last[k] !== h) { OL.last[k] = h; msg.r[k] = h; any = true; }
     }
     OL.dirty.clear();
-    const dyn = dynKeys().join(','); if (dyn !== OL.lastDyn) { OL.lastDyn = dyn; msg.dyn = dyn.split(',').filter(Boolean); any = true; }
+    const dyn = dynKeys().join(',');
+    // sinkron paksa (tiap 5 dtk) selalu menyertakan daftar popup aktif, sehingga popup yang tersangkut di tamu ikut hilang
+    if (forceAll === true || dyn !== OL.lastDyn) { OL.lastDyn = dyn; msg.dyn = dyn.split(',').filter(Boolean); any = true; }
     const meta = buildMeta(), mj = JSON.stringify(meta);
     if (mj !== OL.lastMeta) { OL.lastMeta = mj; msg.m = meta; any = true; }
     if (any) OL.peers.forEach((p) => sendDC(p.dc, msg));
   }
+  OL.syncDyn = () => { OL.lastDyn += '?'; schedule(); };
   function sendFull(peer) {
     const msg = { t: 'st', full: true, r: {}, dyn: dynKeys(), m: buildMeta() };
     for (const [k, el] of regionList()) msg.r[k] = serialize(el);
