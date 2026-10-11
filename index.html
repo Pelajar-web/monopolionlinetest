@@ -2384,7 +2384,7 @@ const STRATEGY_CARDS = [
   { id: 'teleport_rail', name: 'Stasiun Kilat', short: '🚂 Ke Stasiun', rarity: 'epik', desc: 'Pindah ke stasiun milikmu.' },
   { id: 'forward5', name: 'Maju 3', short: '➡️ +3', rarity: 'langka', desc: 'Maju 3 petak.' },
   { id: 'back5', name: 'Mundur 3', short: '⬅️ −3', rarity: 'langka', desc: 'Mundur 3 petak.' },
-  { id: 'rent_to_me', name: 'Tarik Sewa', short: '💰 +Sewa Acak', rarity: 'langka', desc: 'Terima sewa dasar 1 properti lawan acak.' },
+  { id: 'rent_to_me', name: 'Tarik Sewa', short: '💰 +Sewa Acak', rarity: 'biasa', desc: 'Terima 2× sewa dasar 1 properti lawan acak.' },
   { id: 'money_400', name: 'Bonus Besar', short: '💵 +Rp400', rarity: 'epik', desc: 'Terima Rp400 dari bank.' },
   { id: 'energy_5', name: 'Energi Epik', short: '⚡ +5', rarity: 'epik', desc: 'Dapat +5 energi strategi.' },
   { id: 'steal_200', name: 'Rampas Besar', short: '🥷 −Rp200 Terkaya', rarity: 'epik', desc: 'Ambil Rp200 dari pemain terkaya.' },
@@ -2446,7 +2446,8 @@ const STRATEGY_CARDS = [
   { id: 'b3_steal_card', name: 'Curi Kartu', short: '🖐️ Curi Kartu', rarity: 'epik', desc: 'Pilih 1 pemain, ambil 1 kartu acak dari tangannya.' },
   { id: 'b3_go_300', name: 'Bonus MULAI 300 3× giliran', short: '▶️ +300 MULAI 3× giliran', rarity: 'epik', desc: 'Melewati MULAI berikutnya +Rp300 ekstra selama 3 giliran.' },
   { id: 'b3_park_3q', name: 'Ambil ¾ Parkir', short: '🅿️ Ambil ¾', rarity: 'langka', desc: 'Ambil tiga perempat uang di Parkir Gratis.' },
-  { id: 'b3_from_all_35', name: 'Patungan Sedang', short: '🤝 +Rp35×', rarity: 'langka', desc: 'Terima Rp35 dari setiap pemain lain.' },
+  { id: 'b5_rent_all', name: 'Tarik Sewa Semua', short: '💰 +Sewa Semua', rarity: 'langka', desc: 'Terima 3× sewa dasar 1 properti acak dari setiap lawan.' },
+  { id: 'b3_from_all_35', name: 'Patungan Sedang', short: '🤝 +Rp50×', rarity: 'langka', desc: 'Terima Rp50 dari setiap pemain lain.' },
   { id: 'b3_steal_all_10pct', name: 'Pungutan 10%', short: '🥷 10% Semua', rarity: 'langka', desc: 'Ambil 10% uang setiap lawan (maks Rp100 per pemain).' },
   { id: 'b3_steal_all_20pct', name: 'Pungutan 20%', short: '🥷 20% Semua', rarity: 'epik', desc: 'Ambil 20% uang setiap lawan (maks Rp200 per pemain).' },
   { id: 'b3_free_5houses', name: '3 Rumah Gratis', short: '🏠×3 Gratis', rarity: 'legendaris', desc: 'Bangun 3 rumah gratis di monopoli.' },
@@ -4775,7 +4776,7 @@ function updateAuctionCompare() {
 const AUCTION_MONEY_CARDS = new Set(['money_30','money_200','money_400','money_1000','from_all_5','b3_from_all_35','b4_from_all_75',
   'steal_20','steal_50','steal_200','steal_500','steal_from_poorest','steal_random_25','steal_half_richest','steal_richest_20pct','steal_all_money_poor',
   'steal_choose_100','steal_choose_200','steal_choose_25pct','steal_choose_500','b4_steal_choose_40','b4_steal_choose_10pct','b4_steal_choose_20pct',
-  'rent_to_me','stock_div_half','b3_div_double','b3_div_triple','b3_catch_up','b3_lottery_big','b4_lottery_flash',
+  'rent_to_me','b5_rent_all','stock_div_half','b3_div_double','b3_div_triple','b3_catch_up','b3_lottery_big','b4_lottery_flash',
   'b4_interest','b4_props_bonus','b4_rail_bonus','b4_energy_to_money','b3_steal_all_10pct','b3_steal_all_20pct','b3_park_3q','b4_park_fifth',
   'b3_rich_tax','b5_rich_tax_epik','b4_props_gain_20','b4_props_gain_35','b4_harvest_god','steal_all_stocks','stock_steal_1']);
 function realTurnIdx() {
@@ -6348,7 +6349,7 @@ function applyStratCardCore(cardId, opts) {
   }
   if (cardId==='rent_to_me'){
     const ep=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{if(!mortgaged[id]&&SPACES[id].type==='property')ep.push({id,i});});});
-    if(!ep.length){showToast('Tidak ada target');return;} const pick=ep[Math.floor(Math.random()*ep.length)];const rent=SPACES[pick.id].rent||10;const take=Math.min(rent,players[pick.i].money);
+    if(!ep.length){showToast('Tidak ada target');return;} const pick=ep[Math.floor(Math.random()*ep.length)];const rent=(SPACES[pick.id].rent||10)*2;const take=Math.min(rent,players[pick.i].money);
     players[pick.i].money-=take;p.money+=take;moneyAnim(pick.i,-take);moneyAnim(currentPlayer,take);updatePlayersPanel();return;
   }
   if (cardId==='unmort_discount'){
@@ -6887,7 +6888,20 @@ function applyStratCardCore(cardId, opts) {
       }
       // ---- dari semua pemain ----
       case 'b3_from_all_20': collectFromAll(20); return;
-      case 'b3_from_all_35': collectFromAll(35); return;
+      case 'b3_from_all_35': collectFromAll(50); return;
+      case 'b5_rent_all': {
+        let t = 0, n = 0;
+        foes().forEach(({ op, i }) => {
+          const ep = op.props.filter(id => !mortgaged[id] && SPACES[id].type === 'property');
+          if (!ep.length) return;
+          const id = ep[Math.floor(Math.random() * ep.length)];
+          const g = Math.min((SPACES[id].rent || 10) * 3, op.money);
+          op.money -= g; t += g; n++; moneyAnim(i, -g);
+        });
+        if (!n) { refund('Tidak ada target'); return; }
+        p.money += t; moneyAnim(currentPlayer, t);
+        log(`${p.name} terima total Rp${t} (3× sewa dasar) dari ${n} lawan`, 'money'); updatePlayersPanel(); return;
+      }
       case 'b3_from_all_150': collectFromAll(150); return;
       // ---- rampas ----
       case 'b3_steal_poorest_60': {
@@ -8580,7 +8594,7 @@ window.sellHouse = sellHouse;
     if (isMulti()) add(INNER_SPACES, ownedInner, housesInner, mortgagedInner, true);
     return out;
   }
-  const ALWAYS = new Set(['wheel', 'b3_wheel_energy', 'b3_draw_card', 'b3_draw_epic', 'b4_draw_rare_only', 'b3_dice_gamble', 'b4_coin_flip', 'pay_tax_half', 'pay_tax_zero', 'go_bonus_25', 'double_go_small', 'b3_go_300', 'rent_to_me', 'jail_random']);
+  const ALWAYS = new Set(['wheel', 'b3_wheel_energy', 'b3_draw_card', 'b3_draw_epic', 'b4_draw_rare_only', 'b3_dice_gamble', 'b4_coin_flip', 'pay_tax_half', 'pay_tax_zero', 'go_bonus_25', 'double_go_small', 'b3_go_300', 'rent_to_me', 'b5_rent_all', 'jail_random']);
   const MOVE = { forward1: 1, back1: -1, forward5: 3, back5: -3 };
   function instantOk(id, p) {
     const opp = players.filter((q, i) => i !== currentPlayer && !q.bankrupt);
