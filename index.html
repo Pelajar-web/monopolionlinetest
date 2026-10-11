@@ -2026,6 +2026,7 @@ const CHANCE_CARDS = [
   { text: 'Bayar denda parkir Rp15.', action: 'pay', money: -15 },
   { text: 'Kamu menemukan Roda Keberuntungan! Putar sekarang.', action: 'wheel' },
   { text: 'Hadiah Properti. Terima Rp25 per properti milikmu.', action: 'gainprop', money: 25 },
+  { text: 'Ulang tahun! Terima Rp30 dari tiap pemain.', action: 'fromall', money: 30 },
 ];
 
 const CHEST_CARDS = [
@@ -2035,7 +2036,7 @@ const CHEST_CARDS = [
   { text: 'Pergi ke Penjara.', action: 'jail' },
   { text: 'Dana liburan. Terima Rp100.', action: 'money', money: 100 },
   { text: 'Pengembalian pajak. Terima Rp20.', action: 'money', money: 20 },
-  { text: 'Ulang tahun! Terima Rp10 dari tiap pemain.', action: 'fromall', money: 10 },
+  { text: 'Ulang tahun! Terima Rp30 dari tiap pemain.', action: 'fromall', money: 30 },
   { text: 'Biaya rumah sakit Rp100.', action: 'pay', money: -100 },
   { text: 'Terima Rp25 dari asuransi.', action: 'money', money: 25 },
   { text: 'Bayar biaya sekolah Rp50.', action: 'pay', money: -50 },
@@ -3448,7 +3449,17 @@ function getUpgradeValue(spaceId) {
 }
 
 let auctionPaid = {}; // spaceId -> harga lelang tanah khusus lelang (dasar harga beli paksa)
+// Tanah yang digadai: harga beli paksa = (harga tanah − nilai gadai) × 2
 function getForcedBuyPrice(spaceId) {
+  if (mortgaged[spaceId]) {
+    const sp = SPACES[spaceId];
+    const base = (sp.auctionOnly && auctionPaid[spaceId] !== undefined) ? auctionPaid[spaceId] : (sp.price || 0);
+    const mortVal = Math.floor(base / 2); // nilai gadai dihitung dari harga dasar (harga lelang untuk tanah khusus lelang)
+    return Math.max(0, (base - mortVal) * 2);
+  }
+  return getForcedBuyPriceFull(spaceId);
+}
+function getForcedBuyPriceFull(spaceId) {
   const sp = SPACES[spaceId];
   // Tanah khusus lelang (Vatikan): dasar = harga saat dilelang, bukan harga asli
   const base = (sp.auctionOnly && auctionPaid[spaceId] !== undefined) ? auctionPaid[spaceId] : (sp.price || 0);
@@ -5120,6 +5131,14 @@ function getUpgradeValueInner(spaceId) {
 }
 
 function getForcedBuyPriceInner(spaceId) {
+  if (mortgagedInner[spaceId]) {
+    const sp = INNER_SPACES[spaceId];
+    const mortVal = Math.floor((sp.price || 0) / 2);
+    return Math.max(0, ((sp.price || 0) - mortVal) * 2);
+  }
+  return getForcedBuyPriceInnerFull(spaceId);
+}
+function getForcedBuyPriceInnerFull(spaceId) {
   const sp = INNER_SPACES[spaceId];
   const base = sp.price || 0;
   const upgrade = getUpgradeValueInner(spaceId);
