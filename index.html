@@ -2367,7 +2367,8 @@ const STRATEGY_CARDS = [
   { id: 'expensive_house', name: 'Upgrade Mahal', short: '🏠 Upgrade +50%', rarity: 'epik', desc: 'Biaya rumah/hotel +50% untuk semua pemain selamanya. Unique.' },
   { id: 'jail_player', name: 'Masukkan ke Penjara', short: '🔒 Penjara', rarity: 'langka', desc: 'Pilih pemain, masukkan ke Penjara.' },
   { id: 'parking_player', name: 'Ke Parkir Gratis', short: '🅿️ Parkir', rarity: 'biasa', desc: 'Pilih pemain, pindahkan ke Parkir Gratis.' },
-  { id: 'start_player', name: 'Ke MULAI', short: '▶️ MULAI', rarity: 'biasa', desc: 'Pilih pemain, pindahkan ke MULAI (Pemain tidak mendapat hadiah start).' },
+  { id: 'clear_effect', name: 'Bersihkan Efek', short: '🧹 Hapus Efek', rarity: 'langka', desc: 'Hapus semua efek (jebakan, olimpiade, diskon) dari 1 tanah dipilih.' },
+  { id: 'start_player', name: 'Ke MULAI', short: '▶️ MULAI', rarity: 'langka', desc: 'Pilih pemain, pindahkan ke MULAI (Pemain tidak mendapat hadiah start).' },
   { id: 'drag_to_me', name: 'Seret ke Tempatku', short: '🧲 Seret', rarity: 'langka', desc: 'Seret pemain lain ke posisi kamu.' },
   { id: 'swap', name: 'Tukar Posisi', short: '🔄 Tukar', rarity: 'langka', desc: 'Tukar posisi dengan pemain lain.' },
   { id: 'goto_player', name: 'Ke Lokasi Pemain', short: '📍 Ke Pemain', rarity: 'biasa', desc: 'Pindah ke posisi pemain lain.' },
@@ -2399,7 +2400,6 @@ const STRATEGY_CARDS = [
   { id: 'random_back', name: 'Mundur Acak', short: '🎲 Mundur 1–3', rarity: 'biasa', desc: 'Mundur 1–3 petak acak.' },
   { id: 'go_bonus_25', name: 'Bonus MULAI Kecil', short: '▶️ +25 MULAI', rarity: 'biasa', desc: 'Melewati MULAI berikutnya +Rp25 ekstra.' },
   { id: 'pay_tax_zero', name: 'Bebas Pajak', short: '📉 Pajak 0 3× giliran', rarity: 'epik', desc: 'Pajak berikutnya gratis (0%) selama 3× giliran.' },
-  { id: 'from_all_5', name: 'Kumpulkan Kecil', short: '🤝 +Rp25×', rarity: 'biasa', desc: 'Terima Rp25 dari setiap pemain lain.' },
   { id: 'stock_div_half', name: 'Dividen Setengah', short: '📈 ½ Dividen', rarity: 'biasa', desc: 'Terima separuh dividen saham sekarang.' },
   { id: 'wipe_1house', name: 'Hancur 1 Rumah', short: '💥 −1 Rumah', rarity: 'langka', desc: 'Hancurkan 1 rumah di monopoli lawan.' },
   { id: 'double_go_small', name: 'MULAI +100 3× giliran', short: '▶️ MULAI +100 3× giliran', rarity: 'langka', desc: 'MULAI berikutnya +Rp100 ekstra selama 3 giliran.' },
@@ -2447,7 +2447,6 @@ const STRATEGY_CARDS = [
   { id: 'b3_go_300', name: 'Bonus MULAI 300 3× giliran', short: '▶️ +300 MULAI 3× giliran', rarity: 'epik', desc: 'Melewati MULAI berikutnya +Rp300 ekstra selama 3 giliran.' },
   { id: 'b3_park_3q', name: 'Ambil ¾ Parkir', short: '🅿️ Ambil ¾', rarity: 'langka', desc: 'Ambil tiga perempat uang di Parkir Gratis.' },
   { id: 'b5_rent_all', name: 'Tarik Sewa Semua', short: '💰 +Sewa Semua', rarity: 'langka', desc: 'Terima 3× sewa dasar 1 properti acak dari setiap lawan.' },
-  { id: 'b3_from_all_35', name: 'Patungan Sedang', short: '🤝 +Rp50×', rarity: 'langka', desc: 'Terima Rp50 dari setiap pemain lain.' },
   { id: 'b3_steal_all_10pct', name: 'Pungutan 10%', short: '🥷 10% Semua', rarity: 'langka', desc: 'Ambil 10% uang setiap lawan (maks Rp100 per pemain).' },
   { id: 'b3_steal_all_20pct', name: 'Pungutan 20%', short: '🥷 20% Semua', rarity: 'epik', desc: 'Ambil 20% uang setiap lawan (maks Rp200 per pemain).' },
   { id: 'b3_free_5houses', name: '3 Rumah Gratis', short: '🏠×3 Gratis', rarity: 'legendaris', desc: 'Bangun 3 rumah gratis di monopoli.' },
@@ -2478,21 +2477,20 @@ const STRATEGY_CARDS = [
   { id: 'b4_interest', name: 'Bunga Deposito', short: '🏦 Bunga 10%', rarity: 'langka', desc: 'Terima 10% dari uangmu sendiri (maks Rp250).' },
   { id: 'b4_steal_choose_20pct', name: 'Rampas 20% Pilih', short: '🥷 Pilih 20%', rarity: 'langka', desc: 'Pilih 1 pemain, ambil 20% uangnya (maks Rp200).' },
   { id: 'b4_prev_free', name: 'Tanah Kosong Belakang', short: '🗺️ Mundur Tanah Kosong', rarity: 'epik', desc: 'Mundur ke properti tanpa pemilik terdekat di belakang (Tingkat Luar).' },
-  { id: 'b4_prop_tax_small', name: 'Pajak Aset', short: '🏘️ Pajak Aset', rarity: 'biasa', desc: 'Setiap lawan bayar Rp10 per properti miliknya ke bank.' },
+  { id: 'b4_prop_tax_small', name: 'Pajak Aset', short: '🏘️ Pajak Aset', rarity: 'biasa', desc: 'Setiap lawan bayar Rp10 per properti miliknya kepadamu (maks. Rp100 per lawan).' },
   { id: 'buy_coupon', name: 'Kupon Beli', short: '🎫 Kupon Beli', rarity: 'biasa', desc: 'Pembelian tanah langsung berikutnya diskon 15%. Tidak berlaku untuk lelang.' },
   { id: 'rent_voucher', name: 'Voucher Sewa', short: '🎟️ Voucher Sewa', rarity: 'biasa', desc: 'Sewa berikutnya yang kamu bayar dipotong Rp50 (sekali pakai).' },
   { id: 'double_bonus', name: 'Bonus Kembar', short: '🎰 Bonus Kembar', rarity: 'biasa', desc: 'Saat kamu melempar double berikutnya, terima Rp80 dari bank.' },
-  { id: 'b4_prop_tax', name: 'Pajak Aset+', short: '🏘️ Pajak Aset+', rarity: 'langka', desc: 'Setiap lawan bayar Rp20 per properti miliknya ke bank.' },
+  { id: 'b4_prop_tax', name: 'Pajak Aset+', short: '🏘️ Pajak Aset+', rarity: 'langka', desc: 'Setiap lawan bayar Rp20 per properti miliknya kepadamu (maks. Rp200 per lawan).' },
   { id: 'b4_props_gain_20', name: 'Keuntungan Properti', short: '🏘️ Keuntungan Properti', rarity: 'langka', desc: 'Terima Rp20 per properti milikmu.' },
   { id: 'b4_props_gain_35', name: 'Kekayaan Properti', short: '🏢 Kekayaan Properti', rarity: 'epik', desc: 'Terima Rp35 per properti milikmu.' },
   { id: 'b4_swap_energy', name: 'Tukar Energi', short: '🔄 Tukar ⚡', rarity: 'langka', desc: 'Pilih 1 pemain, tukar seluruh energi kalian.' },
   { id: 'b4_jail_poorest', name: 'Penjarakan Termiskin', short: '🔒 Penjara Miskin', rarity: 'langka', desc: 'Pemain termiskin langsung masuk Penjara.' },
   { id: 'b4_unmort_half', name: 'Tebus Setengah', short: '🔓 Tebus −50%', rarity: 'langka', desc: 'Tebus 1 tanahmu yang digadai dengan diskon 50%.' },
   { id: 'b4_draw_rare_only', name: 'Undi Langka+', short: '🃏 Undi Langka+', rarity: 'langka', desc: 'Tarik 1 kartu strategi berkelas Langka, Epik, atau Legendaris.' },
-  { id: 'b4_from_all_75', name: 'Upeti Besar', short: '🤝 +Rp75×', rarity: 'epik', desc: 'Terima Rp75 dari setiap pemain lain.' },
   { id: 'b4_jail_two_richest', name: 'Penjarakan 2 Terkaya', short: '🔒 2 Terkaya', rarity: 'epik', desc: '2 pemain terkaya langsung masuk Penjara.' },
-  { id: 'b4_prop_tax_big', name: 'Pajak Aset++', short: '🏘️ Pajak Aset++', rarity: 'epik', desc: 'Setiap lawan bayar Rp35 per properti miliknya ke bank.' },
-  { id: 'b4_prop_tax_god', name: 'Pajak Kerajaan', short: '👑 Pajak Rp50/Tanah', rarity: 'legendaris', desc: 'Setiap lawan bayar Rp50 per properti miliknya ke bank (semua tingkat papan).' },
+  { id: 'b4_prop_tax_big', name: 'Pajak Aset++', short: '🏘️ Pajak Aset++', rarity: 'epik', desc: 'Setiap lawan bayar Rp35 per properti miliknya kepadamu (maks. Rp300 per lawan).' },
+  { id: 'b4_prop_tax_god', name: 'Pajak Kerajaan', short: '👑 Pajak Rp50/Tanah', rarity: 'legendaris', desc: 'Setiap lawan bayar Rp50 per properti miliknya kepadamu (semua tingkat papan, maks. Rp400 per lawan).' },
   { id: 'b4_harvest_god', name: 'Panen Raya', short: '👑 +Rp50/Tanah', rarity: 'legendaris', desc: 'Terima Rp50 per properti milikmu (semua tingkat papan).' },
   { id: 'fate_dice', name: 'Dadu Takdir', short: '🎯 Dadu Takdir', rarity: 'legendaris', desc: 'Kendalikan nasib: untuk 3 lemparan berikutnya, kamu memilih sendiri angka Dadu 1 dan Dadu 2 (tidak diacak). Dadu ketiga tetap diacak.' },
 ];
@@ -4773,7 +4771,7 @@ function updateAuctionCompare() {
 
 // ===== Lelang: menu (properti, saham, kartu, dagang) mengikuti pemain yang sedang menawar =====
 // Kartu strategi yang boleh dipakai saat lelang = hanya yang menambah uang / saham (tidak menggerakkan pemain).
-const AUCTION_MONEY_CARDS = new Set(['money_30','money_200','money_400','money_1000','from_all_5','b3_from_all_35','b4_from_all_75',
+const AUCTION_MONEY_CARDS = new Set(['money_30','money_200','money_400','money_1000',
   'steal_20','steal_50','steal_200','steal_500','steal_from_poorest','steal_random_25','steal_half_richest','steal_richest_20pct','steal_all_money_poor',
   'steal_choose_100','steal_choose_200','steal_choose_25pct','steal_choose_500','b4_steal_choose_40','b4_steal_choose_10pct','b4_steal_choose_20pct',
   'rent_to_me','b5_rent_all','stock_div_half','b3_div_double','b3_div_triple','b3_catch_up','b3_lottery_big','b4_lottery_flash',
@@ -5681,10 +5679,14 @@ function tryUseStratCard(handIdx) {
   if (!card) return;
 
   // Cards that need a target
-  const needsLand = [...Object.keys(B3_LAND), 'trap', 'olympics', 'discount', 'rent_boost_25', 'trap_3', 'olympics_100', 'discount_75', 'rent_boost_50', 'discount_25', 'rent_boost_75'].includes(cardId);
+  const needsLand = [...Object.keys(B3_LAND), 'clear_effect', 'trap', 'olympics', 'discount', 'rent_boost_25', 'trap_3', 'olympics_100', 'discount_75', 'rent_boost_50', 'discount_25', 'rent_boost_75'].includes(cardId);
   const needsPlayer = [...B3_TARGET_PLAYER, 'jail_player', 'parking_player', 'start_player', 'drag_to_me', 'swap', 'goto_player', 'jail_two', 'steal_choose_50', 'steal_choose_100', 'steal_choose_150', 'steal_choose_200', 'steal_choose_300', 'steal_choose_25pct', 'steal_choose_40pct', 'steal_choose_500', 'steal_choose_half_cap'].includes(cardId);
 
   if (needsLand) {
+    if (cardId === 'clear_effect' && !Object.keys(landEffects).length) {
+      showToast('Belum ada tanah yang punya efek!');
+      return;
+    }
     openStratLandPicker(handIdx, card);
     return;
   }
@@ -5732,7 +5734,12 @@ function isTrapCardId(cardId) {
 // Petak yang boleh dipilih untuk kartu efek tanah. Jebakan bisa dipasang di SEMUA petak
 // (tanah, stasiun, dan non-tanah seperti sudut, pajak, kesempatan, dana umum, roda).
 // Olimpiade & diskon hanya untuk tanah.
+// Kartu pasang efek: petak harus BELUM punya efek. Kartu Hapus Efek: petak harus SUDAH punya efek.
+function landPickBlocked(key, cardId) {
+  return cardId === 'clear_effect' ? !landEffects[key] : !!landEffects[key];
+}
 function landPickEligible(sp, level, cardId) {
+  if (cardId === 'clear_effect') return true;
   if (isTrapCardId(cardId)) return true;
   if (sp.type === 'property' || sp.type === 'util') return true;
   if (sp.type === 'rail') return level === 'outer' || isTrapCardId(cardId);
@@ -5742,13 +5749,13 @@ function landPickEligible(sp, level, cardId) {
 function openStratLandPicker(handIdx, card) {
   // Mode pilih petak di papan (bukan daftar di modal)
   const outerOk = SPACES.some(s =>
-    landPickEligible(s, 'outer', card.id) && !landEffects[landKey('outer', s.id)]
+    landPickEligible(s, 'outer', card.id) && !landPickBlocked(landKey('outer', s.id), card.id)
   );
   const innerOk = isMulti() && INNER_SPACES.some(s =>
-    landPickEligible(s, 'inner', card.id) && !landEffects[landKey('inner', s.id)]
+    landPickEligible(s, 'inner', card.id) && !landPickBlocked(landKey('inner', s.id), card.id)
   );
   if (!outerOk && !innerOk) {
-    showToast('Semua tanah masih punya efek! Tunggu sampai habis.');
+    showToast(card.id === 'clear_effect' ? 'Belum ada tanah yang punya efek!' : 'Semua tanah masih punya efek! Tunggu sampai habis.');
     return;
   }
 
@@ -5791,8 +5798,8 @@ function enterBoardLandPickMode() {
     exitBoardLandPickMode(false);
   };
 
-  setStatus(`🃏 ${pendingStrat.cardShort}: tekan petak di papan untuk memasang`);
-  showToast(`Tekan petak di papan untuk memasang ${pendingStrat.cardShort}`);
+  setStatus(`🃏 ${pendingStrat.cardShort}: tekan petak di papan untuk ${pendingStrat.cardId === 'clear_effect' ? 'menghapus efek' : 'memasang'}`);
+  showToast(pendingStrat.cardId === 'clear_effect' ? 'Tekan petak berefek untuk menghapus efeknya' : `Tekan petak di papan untuk memasang ${pendingStrat.cardShort}`);
 
   // Highlight & bind outer spaces
   SPACES.forEach(s => {
@@ -5805,7 +5812,7 @@ function enterBoardLandPickMode() {
       el.classList.add('pick-disabled');
       return;
     }
-    if (landEffects[key]) {
+    if (landPickBlocked(key, pendingStrat.cardId)) {
       el.classList.add('pick-disabled');
       return;
     }
@@ -5824,7 +5831,7 @@ function enterBoardLandPickMode() {
       el.classList.remove('pickable', 'pick-disabled');
       const eligible = landPickEligible(s, 'inner', pendingStrat.cardId);
       const key = landKey('inner', s.id);
-      if (!eligible || landEffects[key]) {
+      if (!eligible || landPickBlocked(key, pendingStrat.cardId)) {
         el.classList.add('pick-disabled');
         return;
       }
@@ -5846,11 +5853,11 @@ function enterBoardLandPickMode() {
 
 function onBoardLandPicked(landKeyVal) {
   if (!pendingStrat || pendingStrat.mode !== 'boardLand') return;
-  if (landEffects[landKeyVal]) {
-    showToast('Tanah ini masih punya efek!');
+  const { handIdx, cardId } = pendingStrat;
+  if (landPickBlocked(landKeyVal, cardId)) {
+    showToast(cardId === 'clear_effect' ? 'Petak ini tidak punya efek!' : 'Tanah ini masih punya efek!');
     return;
   }
-  const { handIdx, cardId } = pendingStrat;
   // Validasi kartu masih di tangan
   const p = players[currentPlayer];
   if (!p || p.hand[handIdx] !== cardId) {
@@ -6025,6 +6032,21 @@ function applyStratCard(cardId, opts) {
 function applyStratCardCore(cardId, opts) {
   const p = players[currentPlayer];
   opts = opts || {};
+
+  if (cardId === 'clear_effect') {
+    const effOld = landEffects[opts.landId];
+    if (!effOld) {
+      showToast('Petak ini tidak punya efek!');
+      p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI(); return;
+    }
+    const refC = landRefFromKey(opts.landId);
+    const nmC = { trap: 'jebakan', olympics: 'olimpiade', discount: 'diskon' }[effOld.type] || 'efek';
+    delete landEffects[opts.landId];
+    log(`${p.name} menghapus ${nmC} di ${refC.sp.name}${refC.level === 'inner' ? ' (Dalam)' : ''}`, 'important');
+    showToast(`🧹 Efek ${nmC} dihapus dari ${refC.sp.name}`);
+    updateLandEffectBadges();
+    return;
+  }
 
   // ===== Efek tanah batch 3 (jebakan / olimpiade / diskon) =====
   if (B3_LAND[cardId]) {
@@ -6349,8 +6371,10 @@ function applyStratCardCore(cardId, opts) {
   }
   if (cardId==='rent_to_me'){
     const ep=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{if(!mortgaged[id]&&SPACES[id].type==='property')ep.push({id,i});});});
-    if(!ep.length){showToast('Tidak ada target');return;} const pick=ep[Math.floor(Math.random()*ep.length)];const rent=(SPACES[pick.id].rent||10)*2;const take=Math.min(rent,players[pick.i].money);
-    players[pick.i].money-=take;p.money+=take;moneyAnim(pick.i,-take);moneyAnim(currentPlayer,take);updatePlayersPanel();return;
+    if(!ep.length){showToast('Tidak ada target');p.hand.push(cardId);p.energy+=stratCost(cardId);updateStratUI();updatePlayersPanel();return;} const pick=ep[Math.floor(Math.random()*ep.length)];const baseRent=(SPACES[pick.id].rent||10);const rent=baseRent*2;const take=Math.min(rent,players[pick.i].money);
+    players[pick.i].money-=take;p.money+=take;moneyAnim(pick.i,-take);moneyAnim(currentPlayer,take);
+    log(`${p.name} Tarik Sewa: ${SPACES[pick.id].name} milik ${players[pick.i].name} — sewa dasar Rp${baseRent} ×2 = Rp${rent}`+(take<rent?` (hanya dapat Rp${take}, uang lawan kurang)`:` (terima Rp${take})`),'money');
+    updatePlayersPanel();return;
   }
   if (cardId==='unmort_discount'){
     const cands=p.props.filter(id=>mortgaged[id]); if(!cands.length){showToast('Tidak ada gadai');return;}
@@ -6374,9 +6398,6 @@ function applyStratCardCore(cardId, opts) {
   if (cardId==='claim_parking_half'){
     if(freeParkingPot>0){const pot=Math.floor(freeParkingPot/2);freeParkingPot-=pot;p.money+=pot;moneyAnim(currentPlayer,pot);log(`${p.name} ambil ½ Parkir Rp${pot}`,'money');updateFreeParkingDisplay();updatePlayersPanel();}
     else showToast('Parkir kosong'); return;
-  }
-  if (cardId==='from_all_5'){
-    let t=0;players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;const g=Math.min(25,op.money);op.money-=g;t+=g;moneyAnim(i,-g);});p.money+=t;moneyAnim(currentPlayer,t);updatePlayersPanel();return;
   }
   if (cardId==='stock_div_half'){
     let div=0;Object.entries(stockOwned[currentPlayer]||{}).forEach(([sid,qty])=>{const s=STOCKS.find(x=>x.id===sid);if(s)div+=s.dividend*qty;});
@@ -6888,15 +6909,16 @@ function applyStratCardCore(cardId, opts) {
       }
       // ---- dari semua pemain ----
       case 'b3_from_all_20': collectFromAll(20); return;
-      case 'b3_from_all_35': collectFromAll(50); return;
       case 'b5_rent_all': {
         let t = 0, n = 0;
         foes().forEach(({ op, i }) => {
           const ep = op.props.filter(id => !mortgaged[id] && SPACES[id].type === 'property');
           if (!ep.length) return;
           const id = ep[Math.floor(Math.random() * ep.length)];
-          const g = Math.min((SPACES[id].rent || 10) * 3, op.money);
+          const baseR = (SPACES[id].rent || 10);
+          const g = Math.min(baseR * 3, op.money);
           op.money -= g; t += g; n++; moneyAnim(i, -g);
+          log(`${p.name} Tarik Sewa Semua: ${SPACES[id].name} milik ${op.name} — sewa dasar Rp${baseR} ×3 = Rp${baseR * 3}` + (g < baseR * 3 ? ` (hanya dapat Rp${g}, uang lawan kurang)` : ` (terima Rp${g})`), 'money');
         });
         if (!n) { refund('Tidak ada target'); return; }
         p.money += t; moneyAnim(currentPlayer, t);
@@ -7043,7 +7065,6 @@ function applyStratCardCore(cardId, opts) {
       }
       case 'b4_from_all_12': collectFromAll(12); return;
       case 'b4_from_all_45': collectFromAll(45); return;
-      case 'b4_from_all_75': collectFromAll(75); return;
       case 'b4_steal_choose_40':
       case 'b4_steal_choose_120':
       case 'b4_steal_choose_450': {
@@ -7144,16 +7165,6 @@ function applyStratCardCore(cardId, opts) {
         }
         refund('Semua tanah sudah dimiliki'); return;
       }
-      case 'b4_prop_tax_god': {
-        let t = 0;
-        foes().forEach(({ op, i }) => {
-          const n = (op.props || []).length + (op.propsInner || []).length;
-          const g = Math.min(50 * n, op.money);
-          if (g > 0) { op.money -= g; t += g; moneyAnim(i, -g); }
-        });
-        if (t <= 0) { refund('Lawan belum punya properti'); return; }
-        log(`${p.name} memakai Pajak Kerajaan — lawan membayar Rp${t} ke bank`, 'important'); updatePlayersPanel(); return;
-      }
       case 'b4_harvest_god': {
         const n = (p.props || []).length + (p.propsInner || []).length;
         if (!n) { refund('Kamu belum punya properti'); return; }
@@ -7161,16 +7172,20 @@ function applyStratCardCore(cardId, opts) {
       }
       case 'b4_prop_tax_small':
       case 'b4_prop_tax':
-      case 'b4_prop_tax_big': {
-        const per = cardId === 'b4_prop_tax_big' ? 35 : (cardId === 'b4_prop_tax' ? 20 : 10);
+      case 'b4_prop_tax_big':
+      case 'b4_prop_tax_god': {
+        // Lawan membayar per properti KEPADA pemakai kartu, dengan batas maksimal per lawan.
+        const cfg = { b4_prop_tax_small: [10, 100], b4_prop_tax: [20, 200], b4_prop_tax_big: [35, 300], b4_prop_tax_god: [50, 400] }[cardId];
+        const per = cfg[0], cap = cfg[1];
         let t = 0;
         foes().forEach(({ op, i }) => {
           const n = (op.props || []).length + (op.propsInner || []).length;
-          const g = Math.min(per * n, op.money);
-          if (g > 0) { op.money -= g; t += g; moneyAnim(i, -g); }
+          const g = Math.min(per * n, cap, op.money);
+          if (g > 0) { op.money -= g; p.money += g; t += g; moneyAnim(i, -g); log(`${op.name} membayar Rp${g} (${n} properti) ke ${p.name}`, 'money'); }
         });
         if (t <= 0) { refund('Lawan belum punya properti'); return; }
-        log(`${p.name} memakai Pajak Aset — lawan membayar Rp${t} ke bank`, 'money'); updatePlayersPanel(); return;
+        moneyAnim(currentPlayer, t);
+        log(`${p.name} memakai ${(STRATEGY_CARDS.find(c => c.id === cardId) || {}).name || 'Pajak Aset'} — total diterima Rp${t} dari lawan (maks. Rp${cap} per lawan)`, 'important'); updatePlayersPanel(); return;
       }
       case 'b4_jail_poorest':
       case 'b4_jail_two_richest': {
@@ -8486,7 +8501,7 @@ window.sellHouse = sellHouse;
   }
 
   // ---------- pengelolaan aset ----------
-  const SAFE_CARDS = new Set(['money_30','money_200','money_400','money_1000','from_all_5','b3_from_all_35','b3_from_all_150','b4_from_all_75',
+  const SAFE_CARDS = new Set(['money_30','money_200','money_400','money_1000','b3_from_all_150',
     'steal_20','steal_50','steal_200','steal_500','steal_from_poorest','steal_random_25','steal_half_richest','steal_richest_20pct',
     'b3_lottery_big','b4_lottery_flash','b3_catch_up','b4_interest','b4_props_bonus','b4_rail_bonus','b3_steal_all_10pct','b3_steal_all_20pct',
     'b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','stock_div_half','b3_div_double','b3_div_triple','b3_park_3q','b4_park_fifth','b3_rich_tax','b5_rich_tax_epik']);
