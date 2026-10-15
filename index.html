@@ -131,12 +131,7 @@ select:focus, input[type="text"]:focus, input[type="number"]:focus {
   border-radius: 14px;
   padding: 12px;
 }
-.player-row input { flex: 1; min-width: 100px; }
-.color-dot {
-  width: 28px; height: 28px; border-radius: 50%;
-  border: 2px solid #fff; flex-shrink: 0;
-}
-.avatar-select, .color-select {
+.player-row input { flex: 1; min-width: 100px; }.avatar-select, .color-select {
   display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; width: 100%;
 }
 .avatar-btn {
@@ -390,6 +385,27 @@ button.btn-ripple.rippling::after {
   font-weight: 700; font-family: var(--font-display);
 }
 .player-card .props { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+/* ===== Daftar properti milik pemain di kartu giliran ===== */
+.player-card .prop-chips {
+  display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px;
+  max-height: 74px; overflow-y: auto; scrollbar-width: thin;
+}
+.player-card .prop-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 0.6rem; line-height: 1.2; padding: 1px 5px 1px 3px;
+  border-radius: 6px; background: rgba(255,255,255,0.07);
+  color: var(--text, #e2e8f0); max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.player-card .prop-chip i {
+  display: inline-block; flex: none; width: 7px; height: 7px;
+  border-radius: 2px; background: #94a3b8;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.player-card .prop-chip.mort { opacity: 0.5; text-decoration: line-through; }
+.player-card .prop-chip.inner { border: 1px dashed rgba(167,139,250,0.6); }
+.player-card .prop-chip b { font-weight: 700; color: var(--gold); }
+
 /* ===== Penanda Imunitas ===== */
 .player-card.immune {
   border-color: #22d3ee;
@@ -417,12 +433,7 @@ button.btn-ripple.rippling::after {
 @keyframes immunePulse {
   0%, 100% { filter: brightness(1); }
   50% { filter: brightness(1.35); }
-}
-.token-mini {
-  width: 11px; height: 11px; border-radius: 50%;
-  display: inline-block; border: 1.5px solid rgba(255,255,255,0.9);
-}
-.player-card .name .player-avatar { font-size: 1rem; margin-right: 2px; }
+}.player-card .name .player-avatar { font-size: 1rem; margin-right: 2px; }
 
 .main-area {
   display: flex;
@@ -718,37 +729,6 @@ button.btn-ripple.rippling::after {
 }
 .extra-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .extra-btns button { flex: 1; min-width: 96px; }
-
-/* Strategy */
-.strat-panel {
-  background: rgba(7,11,20,0.65);
-  border-radius: 12px;
-  padding: 12px;
-  border: 1px solid rgba(255,255,255,0.05);
-}
-.strat-panel .strat-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 8px; font-size: 0.82rem;
-}
-.strat-energy { color: var(--gold); font-weight: 700; font-size: 0.9rem; }
-.strat-hand { display: flex; flex-wrap: wrap; gap: 6px; min-height: 36px; }
-.strat-card-btn {
-  background: linear-gradient(145deg, #312e81, #1e1b4b);
-  border: 1px solid rgba(99,102,241,0.5);
-  color: #e0e7ff;
-  padding: 7px 9px;
-  border-radius: 10px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1.25;
-  max-width: 110px;
-  text-align: left;
-  transition: all 0.18s;
-}
-.strat-card-btn:hover { border-color: var(--gold); transform: scale(1.04); }
-.strat-card-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
 .land-effect-badge {
   position: absolute;
   bottom: 12px; right: 1px;
@@ -1467,18 +1447,6 @@ body.ol-lock #diceVarOverlay,body.ol-lock #diceVarOverlay *{pointer-events:none 
   </div>
 </div>
 
-<!-- Buy / Auction Modal (fallback, mostly use board popup) -->
-<div class="modal-overlay" id="buyModal">
-  <div class="modal">
-    <h3 id="buyTitle">Beli Properti?</h3>
-    <p id="buyDesc"></p>
-    <div class="btns">
-      <button class="btn-gold" id="buyAuction">Lelang</button>
-      <button class="btn-success" id="buyYes">Beli</button>
-    </div>
-  </div>
-</div>
-
 <!-- Auction Modal -->
 <div class="modal-overlay" id="auctionModal">
   <div class="modal">
@@ -2009,6 +1977,100 @@ const SPACES_ACAK = (function () {
   };
   return SPACES_CLASSIC.map(sp => swap[sp.id] ? Object.assign({ id: sp.id }, swap[sp.id]) : Object.assign({}, sp));
 })();
+
+// Papan Acak dibuat ulang setiap kali permainan baru dimulai. Petak non-tanah
+// tetap di tempatnya; 22 negara dipindah acak ke slot tanah dengan jarak grup warna
+// minimal 4 petak. Susunan terakhir disimpan agar dua permainan berurutan tidak sama.
+const ACAK_LAYOUT_STORAGE_KEY = 'mn_last_acak_layout_v1';
+let lastAcakLayoutInMemory = '';
+function acakLayoutKey(spaces) {
+  return spaces.filter(sp => sp && sp.type === 'property')
+    .map(sp => `${sp.id}:${sp.name}`).join('|');
+}
+function cloneAcakSpaces(spaces) {
+  if (!Array.isArray(spaces) || spaces.length !== 40) return null;
+  const copy = spaces.map((sp, id) => {
+    if (!sp || typeof sp !== 'object' || sp.id !== id || typeof sp.type !== 'string') return null;
+    return Object.assign({}, sp);
+  });
+  if (copy.some(sp => !sp)) return null;
+  const expected = SPACES_ACAK.filter(sp => sp.type === 'property').map(sp => sp.name).sort().join('|');
+  const actual = copy.filter(sp => sp.type === 'property').map(sp => sp.name).sort().join('|');
+  return actual === expected ? copy : null;
+}
+function readLastAcakLayout() {
+  try { return localStorage.getItem(ACAK_LAYOUT_STORAGE_KEY) || lastAcakLayoutInMemory; }
+  catch (e) { return lastAcakLayoutInMemory; }
+}
+function generateRandomAcakSpaces() {
+  const propertyIds = SPACES_ACAK.filter(sp => sp.type === 'property').map(sp => sp.id);
+  const propertyBank = propertyIds.map(id => Object.assign({}, SPACES_ACAK[id]));
+  const templateKey = acakLayoutKey(SPACES_ACAK);
+  const previousKey = readLastAcakLayout();
+  const forbidden = new Set([templateKey]);
+  if (previousKey) forbidden.add(previousKey);
+
+  const isSpaced = properties => {
+    for (let i = 0; i < propertyIds.length; i++) {
+      for (let j = i + 1; j < propertyIds.length; j++) {
+        if (properties[i].group !== properties[j].group) continue;
+        const diff = Math.abs(propertyIds[i] - propertyIds[j]);
+        if (Math.min(diff, 40 - diff) < 4) return false;
+      }
+    }
+    return true;
+  };
+  const makeBoard = properties => {
+    const board = SPACES_ACAK.map(sp => Object.assign({}, sp));
+    propertyIds.forEach((id, i) => {
+      board[id] = Object.assign({}, properties[i], { id });
+    });
+    return board;
+  };
+
+  let board = null;
+  // Fisher–Yates menghasilkan susunan acak; ulangi sampai grup warna tetap tersebar
+  // dan susunannya berbeda dari papan acak sebelumnya maupun template awal.
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const shuffled = propertyBank.map(sp => Object.assign({}, sp));
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    if (!isSpaced(shuffled)) continue;
+    const candidate = makeBoard(shuffled);
+    if (forbidden.has(acakLayoutKey(candidate))) continue;
+    board = candidate;
+    break;
+  }
+
+  // Fallback deterministik yang tetap valid jika generator acak gagal berulang kali.
+  if (!board) {
+    const fallback = SPACES_ACAK.map(sp => Object.assign({}, sp));
+    const groups = new Map();
+    propertyIds.forEach(id => {
+      const group = fallback[id].group;
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(id);
+    });
+    for (const ids of groups.values()) {
+      for (let i = 0; i < ids.length && !board; i++) {
+        for (let j = i + 1; j < ids.length && !board; j++) {
+          [fallback[ids[i]], fallback[ids[j]]] = [fallback[ids[j]], fallback[ids[i]]];
+          if (!forbidden.has(acakLayoutKey(fallback))) board = fallback;
+          else [fallback[ids[i]], fallback[ids[j]]] = [fallback[ids[j]], fallback[ids[i]]];
+        }
+      }
+      if (board) break;
+    }
+    if (!board) board = fallback;
+  }
+
+  const key = acakLayoutKey(board);
+  lastAcakLayoutInMemory = key;
+  try { localStorage.setItem(ACAK_LAYOUT_STORAGE_KEY, key); } catch (e) {}
+  return board;
+}
 let rouletteBaseMoney = 1500; // modal awal, dasar hadiah Russian Roulette
 
 const CHANCE_CARDS = [
@@ -2172,10 +2234,14 @@ function tierName(pl) {
   if (currentMapId === 'tri' && pl.pos < TRI_MID_LEN) return 'Tengah';
   return 'Dalam';
 }
-function setupMapData() {
+function setupMapData(options = {}) {
   if (currentMapId === 'big96') { SPACES = SPACES_96; BOARD_LEN = 96; JAIL_POS = 24; }
   else if (currentMapId === 'roulette') { SPACES = SPACES_ROULETTE; BOARD_LEN = 40; JAIL_POS = 10; }
-  else if (currentMapId === 'acak') { SPACES = SPACES_ACAK; BOARD_LEN = 40; JAIL_POS = 10; }
+  else if (currentMapId === 'acak') {
+    const restoredSpaces = cloneAcakSpaces(options && options.acakSpaces);
+    SPACES = restoredSpaces || generateRandomAcakSpaces();
+    BOARD_LEN = 40; JAIL_POS = 10;
+  }
   else { SPACES = SPACES_CLASSIC; BOARD_LEN = 40; JAIL_POS = 10; }
   GOTOJAIL_POS = JAIL_POS * 3;
   RAIL_IDS = SPACES.filter(x => x.type === 'rail').map(x => x.id);
@@ -2330,13 +2396,6 @@ const STRAT_ENERGY_MAX = 10;
 let STRAT_HAND_MAX = 5; // 0 = tak terbatas (diatur di menu setup)
 const STRAT_START_ENERGY = 10;
 const STRAT_REFILL = 2;
-function clampPlayerEnergy(p) {
-  if (!p) return;
-  let e = p.energy || 0;
-  if (e > STRAT_ENERGY_MAX) e = STRAT_ENERGY_MAX;
-  if (e < 0) e = 0;
-  p.energy = e;
-}
 function addEnergy(p, amount) {
   if (!p) return;
   p.energy = Math.min(STRAT_ENERGY_MAX, Math.max(0, (p.energy || 0) + (amount || 0)));
@@ -2350,7 +2409,6 @@ function isHandFull(p) {
   return (p.hand || []).length >= STRAT_HAND_MAX;
 }
 
-const RARITY_WEIGHTS = { biasa: 50, langka: 30, epik: 15, legendaris: 5 };
 const RARITY_LABEL = {
   biasa: { text: '⚪ Biasa', color: '#94a3b8', bg: '#334155' },
   langka: { text: '🔵 Langka', color: '#38bdf8', bg: '#0c4a6e' },
@@ -2374,20 +2432,17 @@ const STRATEGY_CARDS = [
   { id: 'goto_player', name: 'Ke Lokasi Pemain', short: '📍 Ke Pemain', rarity: 'biasa', desc: 'Pindah ke posisi pemain lain.' },
   { id: 'forward1', name: 'Maju 1', short: '➡️ +1', rarity: 'biasa', desc: 'Maju 1 petak.' },
   { id: 'back1', name: 'Mundur 1', short: '⬅️ −1', rarity: 'biasa', desc: 'Mundur 1 petak.' },
-  { id: 'pay_tax_half', name: 'Pajak Ringan', short: '📉 Pajak ½ 3× giliran', rarity: 'langka', desc: 'Pajak berikutnya hanya 50% selama 3 giliran.' },
   { id: 'extra_roll_card', name: 'Lempar Ekstra', short: '🎲 Lempar Lagi', rarity: 'biasa', desc: 'Langsung dapat lempar dadu tambahan (bisa dipakai setelah lempar dadu).' },
   { id: 'unmort_discount', name: 'Tebus Murah', short: '🔓 Tebus −35%', rarity: 'biasa', desc: 'Tebus 1 tanah digadai diskon 35%.' },
   { id: 'money_200', name: 'Bonus Sedang', short: '💵 +Rp200', rarity: 'langka', desc: 'Terima Rp200 dari bank.' },
-  { id: 'energy_3', name: 'Energi Besar', short: '⚡ +3', rarity: 'langka', desc: 'Dapat +3 energi strategi.' },
   { id: 'steal_50', name: 'Rampas Kecil', short: '🥷 −Rp100', rarity: 'langka', desc: 'Ambil Rp100 dari pemain terkaya.' },
   { id: 'free_house', name: 'Rumah Gratis', short: '🏠 Rumah Gratis', rarity: 'langka', desc: 'Bangun 1 rumah gratis di monopoli.' },
   { id: 'jail_self_out', name: 'Bebas Penjara', short: '🔓 Keluar Penjara', rarity: 'langka', desc: 'Keluar penjara gratis / simpan.' },
-  { id: 'teleport_rail', name: 'Stasiun Kilat', short: '🚂 Ke Stasiun', rarity: 'epik', desc: 'Pindah ke stasiun milikmu.' },
+  { id: 'teleport_rail', name: 'Stasiun Kilat', short: '🚂 Ke Stasiun', rarity: 'epik', desc: 'Pindah ke stasiun milikmu, atau stasiun mana pun kalau kamu tidak punya.' },
   { id: 'forward5', name: 'Maju 3', short: '➡️ +3', rarity: 'langka', desc: 'Maju 3 petak.' },
   { id: 'back5', name: 'Mundur 3', short: '⬅️ −3', rarity: 'langka', desc: 'Mundur 3 petak.' },
-  { id: 'rent_to_me', name: 'Tarik Sewa', short: '💰 +Sewa Acak', rarity: 'biasa', desc: 'Terima 2× sewa dasar 1 properti lawan acak.' },
+  { id: 'rent_to_me', name: 'Tarik Sewa', short: '💰 +Sewa Acak', rarity: 'biasa', desc: 'Terima 5× sewa dasar 1 properti lawan acak.' },
   { id: 'money_400', name: 'Bonus Besar', short: '💵 +Rp400', rarity: 'epik', desc: 'Terima Rp400 dari bank.' },
-  { id: 'energy_5', name: 'Energi Epik', short: '⚡ +5', rarity: 'epik', desc: 'Dapat +5 energi strategi.' },
   { id: 'steal_200', name: 'Rampas Besar', short: '🥷 −Rp200 Terkaya', rarity: 'epik', desc: 'Ambil Rp200 dari pemain terkaya.' },
   { id: 'free_2houses', name: '2 Rumah Gratis', short: '🏠🏠 Gratis', rarity: 'epik', desc: 'Bangun 2 rumah gratis di monopoli.' },
   { id: 'jail_two', name: 'Penjara Ganda', short: '🔒🔒 2 Pemain', rarity: 'epik', desc: 'Pilih 2 pemain, masukkan ke Penjara.' },
@@ -2396,11 +2451,8 @@ const STRATEGY_CARDS = [
   { id: 'steal_property', name: 'Rampas Tanah', short: '🏰 Ambil Tanah', rarity: 'legendaris', desc: 'Bayar 25% dari harga, rebut 1 properti lawan apa pun (tidak ada rumah/hotel).' },
   // ===== 50 KARTU STRATEGI BARU =====
   { id: 'money_30', name: 'Uang Tipis', short: '💵 +Rp50', rarity: 'biasa', desc: 'Terima Rp50 dari bank.' },
-  { id: 'energy_1', name: 'Isi Energi Kecil', short: '⚡ +1', rarity: 'biasa', desc: 'Dapat +1 energi strategi.' },
   { id: 'random_back', name: 'Mundur Acak', short: '🎲 Mundur 1–3', rarity: 'biasa', desc: 'Mundur 1–3 petak acak.' },
   { id: 'go_bonus_25', name: 'Bonus MULAI Kecil', short: '▶️ +25 MULAI', rarity: 'biasa', desc: 'Melewati MULAI berikutnya +Rp25 ekstra.' },
-  { id: 'pay_tax_zero', name: 'Bebas Pajak', short: '📉 Pajak 0 3× giliran', rarity: 'epik', desc: 'Pajak berikutnya gratis (0%) selama 3× giliran.' },
-  { id: 'stock_div_half', name: 'Dividen Setengah', short: '📈 ½ Dividen', rarity: 'biasa', desc: 'Terima separuh dividen saham sekarang.' },
   { id: 'wipe_1house', name: 'Hancur 1 Rumah', short: '💥 −1 Rumah', rarity: 'langka', desc: 'Hancurkan 1 rumah di monopoli lawan.' },
   { id: 'double_go_small', name: 'MULAI +100 3× giliran', short: '▶️ MULAI +100 3× giliran', rarity: 'langka', desc: 'MULAI berikutnya +Rp100 ekstra selama 3 giliran.' },
   { id: 'teleport_random', name: 'Telepor Acak', short: '🌀 Telepor', rarity: 'langka', desc: 'Pindah ke petak acak di papan (bukan penjara).' },
@@ -2416,8 +2468,7 @@ const STRATEGY_CARDS = [
   { id: 'steal_from_poorest', name: 'Rampas Termiskin', short: '🥷 −Rp40 Miskin', rarity: 'biasa', desc: 'Ambil Rp40 dari pemain termiskin.' },
   { id: 'steal_random_25', name: 'Rampas Acak', short: '🥷 −Rp40 Acak', rarity: 'biasa', desc: 'Ambil Rp40 dari 1 pemain acak.' },
   { id: 'random_forward_2', name: 'Lompat 1–2', short: '🎲 +1–2', rarity: 'biasa', desc: 'Maju 1–2 petak acak.' },
-  { id: 'steal_half_richest', name: 'Rampas Separuh Terkaya', short: '🥷 ½ Terkaya', rarity: 'langka', desc: 'Ambil 10% uang pemain terkaya (maks Rp200).' },
-  { id: 'teleport_rail_any', name: 'Ke Stasiun Acak', short: '🚂 Stasiun Acak', rarity: 'epik', desc: 'Pindah ke stasiun acak mana pun.' },
+  { id: 'steal_half_richest', name: 'Rampas 10% Terkaya', short: '🥷 10% Terkaya', rarity: 'langka', desc: 'Ambil 10% uang pemain terkaya (maks Rp200).' },
   { id: 'jail_random', name: 'Penjara Acak', short: '🔒 1 Acak', rarity: 'langka', desc: 'Masukkan 1 pemain acak ke Penjara.' },
   { id: 'stock_steal_1', name: 'Rampas Saham Acak', short: '📈 Ambil Saham Acak', rarity: 'langka', desc: 'Ambil 1 lembar saham acak dari 1 pemain acak.' },
   { id: 'steal_richest_20pct', name: 'Rampas 20% Terkaya', short: '🥷 20% Terkaya', rarity: 'epik', desc: 'Ambil 20% uang pemain terkaya (maks Rp400).' },
@@ -2430,8 +2481,8 @@ const STRATEGY_CARDS = [
   { id: 'steal_choose_500', name: 'Rampas Pilih 500', short: '🥷 Pilih −Rp500', rarity: 'legendaris', desc: 'Pilih 1 pemain, ambil Rp500 darinya.' },
   // ===== 50 KARTU STRATEGI BARU (batch 3) =====
   { id: 'b3_lottery_big', name: 'Lotre Besar', short: '🎟️ Lotre Besar', rarity: 'epik', desc: 'Menang acak Rp100–Rp800.' },
-  { id: 'b3_dice_gamble', name: 'Judi Dadu', short: '🎲 Judi Dadu', rarity: 'langka', desc: 'Lempar dadu: 1–2 kehilangan Rp50, 3–4 dapat Rp100, 5–6 dapat Rp250.' },
-  { id: 'b3_catch_up', name: 'Bantuan Bank', short: '🏦 Bantuan', rarity: 'epik', desc: 'Dapat Rp300 jika kamu pemain termiskin, selain itu Rp60.' },
+  { id: 'b3_dice_gamble', name: 'Judi Dadu', short: '🎲 Judi Dadu', rarity: 'langka', desc: 'Lempar dadu: 1–2 kehilangan Rp50, 3–4 dapat Rp150, 5–6 dapat Rp300.' },
+  { id: 'b3_catch_up', name: 'Bantuan Bank', short: '🏦 Bantuan', rarity: 'langka', desc: 'Dapat Rp300 jika kamu pemain termiskin, selain itu Rp100.' },
   { id: 'b3_draw_card', name: 'Undi Kartu', short: '🃏 Undi Kartu', rarity: 'biasa', desc: 'Langsung tarik 1 kartu strategi baru.' },
   { id: 'b3_draw_epic', name: 'Undi Kartu Epik', short: '🃏 Undi Epik+', rarity: 'epik', desc: 'Tarik 1 kartu strategi berkelas Epik atau Legendaris.' },
   { id: 'b3_wheel_energy', name: 'Roda + Energi', short: '🎡 Roda +⚡2', rarity: 'langka', desc: 'Dapat +2 energi lalu putar Roda Keberuntungan.' },
@@ -2445,22 +2496,19 @@ const STRATEGY_CARDS = [
   { id: 'b3_destroy_card', name: 'Hancurkan Kartu', short: '🗑️ Hancur Kartu', rarity: 'langka', desc: 'Pilih 1 pemain, buang 1 kartu acak dari tangannya.' },
   { id: 'b3_steal_card', name: 'Curi Kartu', short: '🖐️ Curi Kartu', rarity: 'epik', desc: 'Pilih 1 pemain, ambil 1 kartu acak dari tangannya.' },
   { id: 'b3_go_300', name: 'Bonus MULAI 300 3× giliran', short: '▶️ +300 MULAI 3× giliran', rarity: 'epik', desc: 'Melewati MULAI berikutnya +Rp300 ekstra selama 3 giliran.' },
-  { id: 'b3_park_3q', name: 'Ambil ¾ Parkir', short: '🅿️ Ambil ¾', rarity: 'langka', desc: 'Ambil tiga perempat uang di Parkir Gratis.' },
-  { id: 'b5_rent_all', name: 'Tarik Sewa Semua', short: '💰 +Sewa Semua', rarity: 'langka', desc: 'Terima 3× sewa dasar 1 properti acak dari setiap lawan.' },
+  { id: 'b3_park_3q', name: 'Ambil Semua Parkir', short: '🅿️ Ambil Semua', rarity: 'langka', desc: 'Ambil seluruh uang di Parkir Gratis.' },
+  { id: 'b5_rent_all', name: 'Tarik Sewa Semua', short: '💰 +Sewa Semua', rarity: 'langka', desc: 'Terima 5× sewa dasar 1 properti acak dari setiap lawan.' },
   { id: 'b3_steal_all_10pct', name: 'Pungutan 10%', short: '🥷 10% Semua', rarity: 'langka', desc: 'Ambil 10% uang setiap lawan (maks Rp100 per pemain).' },
   { id: 'b3_steal_all_20pct', name: 'Pungutan 20%', short: '🥷 20% Semua', rarity: 'epik', desc: 'Ambil 20% uang setiap lawan (maks Rp200 per pemain).' },
   { id: 'b3_free_5houses', name: '3 Rumah Gratis', short: '🏠×3 Gratis', rarity: 'legendaris', desc: 'Bangun 3 rumah gratis di monopoli.' },
   { id: 'b3_wipe_5houses', name: 'Gempa Bumi', short: '🌋 Hancur 3 Rumah', rarity: 'legendaris', desc: 'Hancurkan hingga 3 rumah di monopoli lawan.' },
   { id: 'b3_unmort_all', name: 'Tebus Massal', short: '🔓 Tebus Semua −50%', rarity: 'epik', desc: 'Tebus semua tanahmu yang digadai dengan diskon 50% (sebisa uangmu).' },
-  { id: 'b3_div_double', name: 'Dividen Ganda', short: '📈 Dividen ×2', rarity: 'langka', desc: 'Terima dividen saham 2× lipat sekarang.' },
-  { id: 'b3_div_triple', name: 'Dividen Triple', short: '📈 Dividen ×3', rarity: 'epik', desc: 'Terima dividen saham 3× lipat sekarang.' },
   { id: 'b3_jail_richest', name: 'Penjarakan Terkaya', short: '🔒 Penjara Terkaya', rarity: 'langka', desc: 'Pemain terkaya langsung masuk Penjara.' },
   { id: 'b3_nearest_rail', name: 'Stasiun Terdekat', short: '🚉 Stasiun Depan', rarity: 'epik', desc: 'Maju ke stasiun terdekat di depan (Tingkat Luar).' },
   { id: 'b3_nearest_free', name: 'Tanah Kosong Terdekat', short: '🗺️ Tanah Kosong', rarity: 'epik', desc: 'Maju ke properti tanpa pemilik terdekat (Tingkat Luar).' },
   { id: 'b3_rich_tax', name: 'Pajak Orang Kaya', short: '⚖️ Pajak Kaya', rarity: 'biasa', desc: 'Setiap pemain yang uangnya lebih banyak darimu membayar Rp40.' },
   { id: 'b5_rich_tax_epik', name: 'Pajak Konglomerat', short: '⚖️ Pajak Konglomerat', rarity: 'epik', desc: 'Setiap pemain yang uangnya lebih banyak darimu membayar Rp120.' },
   // ===== 50 KARTU STRATEGI BARU (batch 4) =====
-  { id: 'b4_energy_hand', name: 'Energi Tangan', short: '⚡ +Kartu', rarity: 'biasa', desc: 'Dapat energi sebanyak kartu di tanganmu (maks +4).' },
   { id: 'b4_steal_choose_40', name: 'Rampas Pilih 40', short: '🥷 Pilih −Rp40', rarity: 'biasa', desc: 'Pilih 1 pemain, ambil Rp40 darinya.' },
   { id: 'b4_boost_15', name: 'Sewa +15%', short: '📈 Sewa +15%', rarity: 'biasa', desc: 'Sewa +15% di tanah dipilih (1x).' },
   { id: 'b4_discount_15', name: 'Diskon 15%', short: '🏷️ Sewa −15%', rarity: 'biasa', desc: 'Sewa −15% di tanah dipilih (1x).' },
@@ -2468,13 +2516,11 @@ const STRATEGY_CARDS = [
   { id: 'b4_rail_bonus', name: 'Bonus Stasiun', short: '🚂 +Rp30/Stasiun', rarity: 'biasa', desc: 'Terima Rp30 per stasiun milikmu.' },
   { id: 'b4_coin_flip', name: 'Lempar Koin', short: '🪙 Koin', rarity: 'biasa', desc: '50%: dapat Rp150, 50%: kehilangan Rp40.' },
   { id: 'b4_lottery_flash', name: 'Lotre Kilat', short: '🎟️ Lotre Kilat', rarity: 'biasa', desc: 'Menang acak Rp10–Rp120.' },
-  { id: 'b4_park_fifth', name: 'Ambil ½ Parkir', short: '🅿️ Ambil ½', rarity: 'biasa', desc: 'Ambil setengah uang di Parkir Gratis.' },
-  { id: 'b4_money_to_energy', name: 'Beli Energi', short: '🔋 Rp50→⚡3', rarity: 'biasa', desc: 'Bayar Rp50, dapat +3 energi.' },
+  { id: 'b4_park_fifth', name: 'Ambil ¾ Parkir', short: '🅿️ Ambil ¾', rarity: 'biasa', desc: 'Ambil tiga perempat uang di Parkir Gratis.' },
   { id: 'b4_energy_to_money', name: 'Jual Energi', short: '⚡3→💵 Rp120', rarity: 'biasa', desc: 'Tukar 3 energi menjadi Rp120.' },
-  { id: 'b4_steal_energy_1', name: 'Curi Energi Kecil', short: '🔌 Curi ⚡1', rarity: 'biasa', desc: 'Pilih 1 pemain, ambil 1 energinya.' },
   { id: 'b4_prev_rail', name: 'Stasiun Belakang', short: '🚉 Stasiun Mundur', rarity: 'epik', desc: 'Mundur ke stasiun terdekat di belakang (Tingkat Luar).' },
   { id: 'b4_steal_choose_10pct', name: 'Rampas 10% Pilih', short: '🥷 Pilih 10%', rarity: 'biasa', desc: 'Pilih 1 pemain, ambil 10% uangnya (maks Rp100).' },
-  { id: 'b4_interest', name: 'Bunga Deposito', short: '🏦 Bunga 10%', rarity: 'langka', desc: 'Terima 10% dari uangmu sendiri (maks Rp250).' },
+  { id: 'b4_interest', name: 'Bunga Deposito', short: '🏦 Bunga 15%', rarity: 'langka', desc: 'Terima 15% dari uangmu sendiri (min Rp100, maks Rp300).' },
   { id: 'b4_steal_choose_20pct', name: 'Rampas 20% Pilih', short: '🥷 Pilih 20%', rarity: 'langka', desc: 'Pilih 1 pemain, ambil 20% uangnya (maks Rp200).' },
   { id: 'b4_prev_free', name: 'Tanah Kosong Belakang', short: '🗺️ Mundur Tanah Kosong', rarity: 'epik', desc: 'Mundur ke properti tanpa pemilik terdekat di belakang (Tingkat Luar).' },
   { id: 'b4_prop_tax_small', name: 'Pajak Aset', short: '🏘️ Pajak Aset', rarity: 'biasa', desc: 'Setiap lawan bayar Rp10 per properti miliknya kepadamu (maks. Rp100 per lawan).' },
@@ -2490,27 +2536,23 @@ const STRATEGY_CARDS = [
   { id: 'b4_draw_rare_only', name: 'Undi Langka+', short: '🃏 Undi Langka+', rarity: 'langka', desc: 'Tarik 1 kartu strategi berkelas Langka, Epik, atau Legendaris.' },
   { id: 'b4_jail_two_richest', name: 'Penjarakan 2 Terkaya', short: '🔒 2 Terkaya', rarity: 'epik', desc: '2 pemain terkaya langsung masuk Penjara.' },
   { id: 'b4_prop_tax_big', name: 'Pajak Aset++', short: '🏘️ Pajak Aset++', rarity: 'epik', desc: 'Setiap lawan bayar Rp35 per properti miliknya kepadamu (maks. Rp300 per lawan).' },
-  { id: 'b4_prop_tax_god', name: 'Pajak Kerajaan', short: '👑 Pajak Rp50/Tanah', rarity: 'legendaris', desc: 'Setiap lawan bayar Rp50 per properti miliknya kepadamu (semua tingkat papan, maks. Rp400 per lawan).' },
-  { id: 'b4_harvest_god', name: 'Panen Raya', short: '👑 +Rp50/Tanah', rarity: 'legendaris', desc: 'Terima Rp50 per properti milikmu (semua tingkat papan).' },
+  { id: 'b4_prop_tax_god', name: 'Pajak Kerajaan', short: '👑 Pajak Rp50/Tanah', rarity: 'legendaris', desc: 'Setiap lawan bayar Rp50 per properti miliknya kepadamu (maks. Rp500, semua tingkat papan).' },
+  { id: 'b4_harvest_god', name: 'Panen Raya', short: '👑 +Rp100/Tanah', rarity: 'legendaris', desc: 'Terima Rp100 per properti milikmu (semua tingkat papan).' },
+  { id: 'third_die_once', name: 'Tiga Dadu', short: '🎲 Tiga Dadu', rarity: 'langka', desc: 'Lemparan berikutnya memakai Dadu Ketiga: +1/+2/+3 langkah, Pilih Dadu, Properti Terdekat, atau Lempar Lagi. Hanya muncul jika Dadu Ketiga nonaktif.' },
   { id: 'fate_dice', name: 'Dadu Takdir', short: '🎯 Dadu Takdir', rarity: 'legendaris', desc: 'Kendalikan nasib: untuk 3 lemparan berikutnya, kamu memilih sendiri angka Dadu 1 dan Dadu 2 (tidak diacak). Dadu ketiga tetap diacak.' },
 ];
 
 // Konfigurasi kartu batch 3 yang butuh target tanah / pemain
 const B3_LAND = {
-  b3_boost_35:    { type: 'olympics', mult: 1.35 },
-  b3_discount_40: { type: 'discount', mult: 0.6 },
   b3_trap_1:      { type: 'trap', skip: 1 },
   b3_boost_150:   { type: 'olympics', mult: 1.25 },
   b3_discount_90: { type: 'discount', mult: 0.5 },
   b3_trap_3:      { type: 'trap', skip: 3 },
   b4_boost_15:    { type: 'olympics', mult: 1.15 },
   b4_discount_15: { type: 'discount', mult: 0.85 },
-  b4_boost_60:    { type: 'olympics', mult: 1.6 },
-  b4_discount_60: { type: 'discount', mult: 0.4 },
-  b4_boost_200:   { type: 'olympics', mult: 3 },
 };
-const B3_TARGET_PLAYER = ['b3_steal_choose_75', 'b3_skip_player', 'b3_steal_energy', 'b3_destroy_card', 'b3_steal_card',
-  'b4_steal_choose_40', 'b4_steal_energy_1', 'b4_steal_choose_10pct', 'b4_steal_choose_120', 'b4_steal_choose_20pct', 'b4_swap_energy', 'b4_skip_player_2', 'b4_steal_choose_450', 'b4_steal_choose_45pct'];
+const B3_TARGET_PLAYER = ['b3_skip_player', 'b3_steal_energy', 'b3_destroy_card', 'b3_steal_card',
+  'b4_steal_choose_40', 'b4_steal_choose_10pct', 'b4_steal_choose_20pct', 'b4_swap_energy'];
 
 // landEffects: spaceId -> { type: 'trap'|'olympics'|'discount' }
 let landEffects = {};
@@ -2530,7 +2572,7 @@ const MAP_DESCS = {
   dual: 'Dua tingkat tampil bersamaan: 40 petak luar + 24 petak dalam. Stasiun menjadi jalur pindah antar tingkat.',
   tri: 'Tiga tingkat (40 + 32 + 24 petak) yang dihubungkan stasiun bersama. Hadiah melewati start tingkat tengah Rp150. Permainan paling panjang dan strategis.',
   big96: 'Papan raksasa berbentuk orbit: tiga lingkaran berurutan (40 + 32 + 24 petak) dengan total 96 petak. Hadiah melewati MULAI Rp500.',
-  acak: 'Mirip papan klasik 40 petak, tapi posisi tanah diacak: tanah dengan warna yang sama tidak berdekatan lagi (minimal berjarak 4 petak), jadi sulit melengkapi satu grup warna.',
+  acak: 'Mirip papan klasik 40 petak. Posisi negara diacak ulang setiap permainan baru; negara dengan warna sama tetap berjarak minimal 4 petak, sehingga sulit melengkapi satu grup warna.',
   roulette: 'Papan 40 petak yang lebih cepat: setiap grup warna hanya terdiri dari dua negara dan terdapat satu grup warna hanya terdiri satu negara (harus lelang), jadi lebih mudah melengkapi satu grup dan membangun rumah. Permainan berjalan lebih singkat.'
 };
 (function(){
@@ -2787,6 +2829,7 @@ function playAgainOnline() {
 // Permainan disimpan otomatis (localStorage) di awal setiap giliran. Saat dilanjutkan, game kembali ke awal giliran pemain tersebut.
 // Tidak berlaku untuk mode online (room).
 const SAVE_KEY = 'mn_save_v1';
+let resumeTurnBonus = null; // diisi saat melanjutkan: bonus giliran (energi/kartu) sudah diterapkan, jangan diundi ulang
 const SAVE_MAP_LABEL = { classic: 'Klasik', dual: 'Dua Tingkat', tri: 'Tiga Tingkat', big96: 'Orbit 96 Petak', roulette: 'Papan Cepat', acak: 'Papan Acak' };
 function isOnlineRoomActive() { return document.body.classList.contains('ol-host') || document.body.classList.contains('ol-guest'); }
 function saveGameState() {
@@ -2797,10 +2840,12 @@ function saveGameState() {
     const logs = logEl ? Array.from(logEl.children).slice(0, 60).map(e => [e.className.replace('log-entry', '').trim(), e.textContent]) : [];
     const data = {
       v: 1, ts: Date.now(),
-      currentMapId, strategiEnabled, thirdDiceEnabled, thirdDiceMode, STRAT_HAND_MAX, rouletteBaseMoney,
+      currentMapId, acakSpaces: currentMapId === 'acak' ? SPACES.map(sp => Object.assign({}, sp)) : null,
+      strategiEnabled, thirdDiceEnabled, thirdDiceMode, STRAT_HAND_MAX, rouletteBaseMoney,
       currentPlayer, players, owned, mortgaged, houses, stockOwned,
       ownedInner, mortgagedInner, housesInner, freeParkingPot, landEffects,
-      stratUniqueTaken, houseCostGlobal, auctionPaid, diceFaces1, diceFaces2, logs
+      stratUniqueTaken, houseCostGlobal, auctionPaid, diceFaces1, diceFaces2, logs,
+      turnBonus: { done: true, drawId: (pendingStratDraw && pendingStratDraw.card) ? pendingStratDraw.card.id : null }
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (e) { console.warn('[simpan]', e); }
@@ -2836,7 +2881,12 @@ function resumeSavedGame() {
   if (!d) { showToast('Tidak ada permainan tersimpan.'); refreshResumeBox(); return; }
 
   currentMapId = SAVE_MAP_LABEL[d.currentMapId] ? d.currentMapId : 'classic';
-  setupMapData();
+  // Pakai susunan tersimpan agar pemilik, harga, dan posisi tanah tetap cocok saat dilanjutkan.
+  // Save versi lama tidak menyimpan susunan, jadi pulihkan template lama untuk kompatibilitas.
+  const savedAcakSpaces = currentMapId === 'acak'
+    ? (cloneAcakSpaces(d.acakSpaces) || cloneAcakSpaces(SPACES_ACAK))
+    : null;
+  setupMapData({ acakSpaces: savedAcakSpaces });
   strategiEnabled = !!d.strategiEnabled;
   thirdDiceEnabled = !!d.thirdDiceEnabled;
   thirdDiceMode = d.thirdDiceMode === 'new' ? 'new' : 'classic';
@@ -2869,6 +2919,7 @@ function resumeSavedGame() {
   pendingDebt = null;
   pendingStrat = null;
   pendingStratDraw = null;
+  resumeTurnBonus = d.turnBonus && d.turnBonus.done ? { drawId: d.turnBonus.drawId || null } : null;
   pendingTrade = null;
   auction = null;
   waitingAction = false;
@@ -3317,11 +3368,23 @@ function updatePlayersPanel() {
     if (p.color) card.style.setProperty('--pc', p.color);
     const stockCount = Object.values(stockOwned[i] || {}).reduce((a,b)=>a+b, 0);
     const houseCount = p.props.reduce((a, id) => a + (houses[id] || 0), 0);
+    const chipHtml = (sp, h, mort, inner) => {
+      if (!sp) return '';
+      const col = sp.color || (sp.type === 'rail' ? '#64748b' : sp.type === 'util' ? '#eab308' : '#94a3b8');
+      const hl = h === 5 ? ' <b>🏨</b>' : (h > 0 ? ` <b>🏠${h}</b>` : '');
+      const nm = String(sp.name).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      return `<span class="prop-chip${mort ? ' mort' : ''}${inner ? ' inner' : ''}" title="${nm}${mort ? ' (digadai)' : ''}"><i style="background:${col}"></i>${inner ? '🕳️' : ''}${nm}${hl}</span>`;
+    };
+    const chips = [
+      ...[...p.props].sort((a, b) => a - b).map(id => chipHtml(SPACES[id], houses[id] || 0, !!mortgaged[id], false)),
+      ...(isMulti() ? [...(p.propsInner || [])].sort((a, b) => a - b).map(id => chipHtml(INNER_SPACES[id], housesInner[id] || 0, !!mortgagedInner[id], true)) : [])
+    ].join('');
     card.innerHTML = `
-      <div class="name"><span class="player-avatar">${p.avatar || '👤'}</span> ${p.name}${p.isBot ? ' 🤖' : ''}${(p.fateRolls || 0) > 0 && !p.bankrupt ? ' 🎯×' + p.fateRolls : ''}${p.buyCoupon && !p.bankrupt ? ' 🎫' : ''}${p.rentVoucher && !p.bankrupt ? ' 🎟️' : ''}${p.doubleBonus && !p.bankrupt ? ' 🎰' : ''}</div>
+      <div class="name"><span class="player-avatar">${p.avatar || '👤'}</span> ${p.name}${p.isBot ? ' 🤖' : ''}${(p.fateRolls || 0) > 0 && !p.bankrupt ? ' 🎯×' + p.fateRolls : ''}${p.buyCoupon && !p.bankrupt ? ' 🎫' : ''}${p.thirdOnce && !p.bankrupt ? ' 🎲³' : ''}${p.rentVoucher && !p.bankrupt ? ' 🎟️' : ''}${p.doubleBonus && !p.bankrupt ? ' 🎰' : ''}</div>
       <div class="money">Rp${p.money}</div>
       ${(p.immunityTurns || 0) > 0 && !p.bankrupt ? '<div class="immune-badge">🛡️ IMUNITAS</div>' : ''}
       <div class="props">${p.props.length} prop${isMulti() ? ` • ${(p.propsInner||[]).length}🚇` : ''} • ${houseCount}🏠 • ${strategiEnabled ? `⚡${p.energy||0}/${STRAT_ENERGY_MAX} ${(p.hand||[]).length}/${handLimitLabel()}🃏 ` : ''}${p.inJail ? '🔒' : ''} ${(p.skipTurns||0)>0?'💣':''} ${isMulti() && p.level === 'inner' ? '🕳️' : ''}</div>
+      ${chips ? `<div class="prop-chips">${chips}</div>` : ''}
     `;
     panel.appendChild(card);
   });
@@ -3523,7 +3586,6 @@ function sellHouse(spaceId) {
 function startTurn() {
   const p = players[currentPlayer];
   if (p.bankrupt) { nextPlayer(); return; }
-  saveGameState(); // simpan otomatis di awal giliran (sebelum bonus giliran dihitung)
   if (isMulti()) renderActiveBoard();
   waitingAction = false;
   hasRolledThisTurn = false;
@@ -3534,14 +3596,25 @@ function startTurn() {
   pendingThirdFlags = { extraRoll: false, skipTurn: false, nearestProp: false };
   const effectEl = document.getElementById('thirdDiceEffect');
   if (effectEl && thirdDiceEnabled) effectEl.textContent = 'Dadu ke-3 siap';
+  if (!thirdDiceEnabled) { const _d3 = document.getElementById('die3'); if (_d3) _d3.style.display = 'none'; if (effectEl) { effectEl.style.display = 'none'; effectEl.textContent = ''; } }
   { const oldDv = document.getElementById('diceVarOverlay'); if (oldDv) oldDv.remove(); }
 
   // +1 kartu & +2 energi mulai giliran ke-2 (giliran pertama: hanya energi awal 10)
-  p.turnsPlayed = (p.turnsPlayed || 0) + 1;
-  if (strategiEnabled && p.turnsPlayed >= 2) {
-    addEnergy(p, STRAT_REFILL);
-    drawStrategyCard(currentPlayer);
-    log(`${p.name}: +⚡${STRAT_REFILL} energi (giliran ke-${p.turnsPlayed})`);
+  if (resumeTurnBonus) {
+    // Dilanjutkan dari simpanan: energi/kartu giliran ini sudah tercatat, tampilkan kartu yang SAMA (tidak diundi ulang).
+    const rb = resumeTurnBonus; resumeTurnBonus = null;
+    if (rb.drawId) {
+      const rc = STRATEGY_CARDS.find(c => c.id === rb.drawId);
+      if (rc) showStratDrawPopup(currentPlayer, rc);
+    }
+  } else {
+    p.turnsPlayed = (p.turnsPlayed || 0) + 1;
+    if (strategiEnabled && p.turnsPlayed >= 2) {
+      addEnergy(p, STRAT_REFILL);
+      drawStrategyCard(currentPlayer);
+      log(`${p.name}: +⚡${STRAT_REFILL} energi (giliran ke-${p.turnsPlayed})`);
+    }
+    saveGameState(); // simpan otomatis SETELAH bonus giliran (termasuk kartu yang diundi) agar tidak berubah saat dilanjutkan
   }
 
   // Trap skip turns
@@ -3664,6 +3737,14 @@ function rollDice(forced) {
   stratMovedNoRoll = false;
   const rollP = players[currentPlayer];
   if (forced) { rollP.fateRolls = Math.max(0, (rollP.fateRolls || 0) - 1); updatePlayersPanel(); }
+  const useThird = thirdDiceEnabled || !!rollP.thirdOnce;   // kartu Tiga Dadu: Dadu Ketiga aktif untuk 1 lemparan
+  const T = thirdDiceEnabled ? thirdDiceTable() : THIRD_DICE_EFFECTS_NEW;
+  if (useThird && !thirdDiceEnabled) {
+    rollP.thirdOnce = false; updatePlayersPanel();
+    const _d3 = document.getElementById('die3'), _ef = document.getElementById('thirdDiceEffect');
+    if (_d3) _d3.style.display = 'flex';
+    if (_ef) _ef.style.display = 'block';
+  }
   const F1 = (rollP && rollP.diceF1) || diceFaces1;
   const F2 = (rollP && rollP.diceF2) || diceFaces2;
   const d1 = document.getElementById('die1');
@@ -3671,20 +3752,20 @@ function rollDice(forced) {
   const d3 = document.getElementById('die3');
   d1.classList.add('rolling');
   d2.classList.add('rolling');
-  if (thirdDiceEnabled && d3) d3.classList.add('rolling');
+  if (useThird && d3) d3.classList.add('rolling');
   document.getElementById('actionBtns').innerHTML = '';
   thirdDiceEffect = null;
   pendingThirdFlags = { extraRoll: false, skipTurn: false, nearestProp: false };
   const effectEl = document.getElementById('thirdDiceEffect');
-  if (effectEl) effectEl.textContent = thirdDiceEnabled ? 'Memutar...' : '';
+  if (effectEl) effectEl.textContent = useThird ? 'Memutar...' : '';
 
   let rolls = 0;
   const interval = setInterval(() => {
     d1.textContent = rollFace(F1);
     d2.textContent = rollFace(F2);
-    if (thirdDiceEnabled && d3) {
+    if (useThird && d3) {
       const rnd = Math.ceil(Math.random()*6);
-      d3.textContent = thirdDiceTable()[rnd].short;
+      d3.textContent = T[rnd].short;
     }
     rolls++;
     if (rolls > 8) {
@@ -3697,9 +3778,9 @@ function rollDice(forced) {
       d2.textContent = dice2;
       d1.classList.remove('rolling');
       d2.classList.remove('rolling');
-      if (thirdDiceEnabled) {
+      if (useThird) {
         dice3 = Math.ceil(Math.random()*6);
-        thirdDiceEffect = thirdDiceTable()[dice3];
+        thirdDiceEffect = T[dice3];
         if (d3) {
           d3.textContent = thirdDiceEffect.short;
           d3.classList.remove('rolling');
@@ -3731,7 +3812,7 @@ function handleDiceResult() {
   let logMsg = `${p.name} melempar ${dice1}+${dice2}=${total}${isDouble ? ' (DOUBLE!)' : ''}`;
 
   // Apply third-dice modifiers that affect step count / choice BEFORE moving
-  if (thirdDiceEnabled && thirdDiceEffect) {
+  if (thirdDiceEffect) {
     if (thirdDiceEffect.add) {
       total += thirdDiceEffect.add;
       logMsg += ` → +${thirdDiceEffect.add} = ${total}`;
@@ -4515,6 +4596,23 @@ function handleProperty() {
   }
 }
 
+// Pengali sewa rumah/hotel Tingkat Luar disesuaikan dengan harga tanah (mirip Monopoli klasik):
+// tanah murah tetap 5/15/45/80/125 kali; tanah mahal pengalinya mengecil sehingga sewa hotel
+// kira-kira 5x harga tanah (minimal pengali hotel 40, maksimal 125).
+function outerRentMults(sp) {
+  const base = [5, 15, 45, 80, 125];
+  if (!sp || !sp.rent || !sp.price) return base;
+  const hotel = Math.max(40, Math.min(125, Math.round(5 * sp.price / sp.rent)));
+  const f = hotel / 125;
+  const out = [];
+  for (let i = 0; i < 5; i++) {
+    let m = i === 4 ? hotel : Math.round(base[i] * f);
+    m = Math.max(m, i === 0 ? 3 : out[i - 1] + 1); // minimal 3x (di atas sewa set warna 2x) dan selalu naik
+    out.push(m);
+  }
+  return out;
+}
+
 function getRent(sp, pos) {
   let rent = 0;
   if (sp.type === 'rail') {
@@ -4537,11 +4635,7 @@ function getRent(sp, pos) {
   } else {
     // Property with houses
     const h = houses[pos] || 0;
-    if (h === 1) rent = sp.rent * 5;
-    else if (h === 2) rent = sp.rent * 15;
-    else if (h === 3) rent = sp.rent * 45;
-    else if (h === 4) rent = sp.rent * 80;
-    else if (h === 5) rent = sp.rent * 125; // hotel
+    if (h >= 1 && h <= 5) rent = sp.rent * outerRentMults(sp)[h - 1]; // 5 = hotel
     else {
       // No houses: monopoly doubles
       const group = sp.group;
@@ -4774,7 +4868,7 @@ function updateAuctionCompare() {
 const AUCTION_MONEY_CARDS = new Set(['money_30','money_200','money_400','money_1000',
   'steal_20','steal_50','steal_200','steal_500','steal_from_poorest','steal_random_25','steal_half_richest','steal_richest_20pct','steal_all_money_poor',
   'steal_choose_100','steal_choose_200','steal_choose_25pct','steal_choose_500','b4_steal_choose_40','b4_steal_choose_10pct','b4_steal_choose_20pct',
-  'rent_to_me','b5_rent_all','stock_div_half','b3_div_double','b3_div_triple','b3_catch_up','b3_lottery_big','b4_lottery_flash',
+  'rent_to_me','b5_rent_all','b3_catch_up','b3_lottery_big','b4_lottery_flash',
   'b4_interest','b4_props_bonus','b4_rail_bonus','b4_energy_to_money','b3_steal_all_10pct','b3_steal_all_20pct','b3_park_3q','b4_park_fifth',
   'b3_rich_tax','b5_rich_tax_epik','b4_props_gain_20','b4_props_gain_35','b4_harvest_god','steal_all_stocks','stock_steal_1']);
 function realTurnIdx() {
@@ -5458,6 +5552,7 @@ document.getElementById('stocksClose').onclick = () => {
 function getAvailableStratCards() {
   return STRATEGY_CARDS.filter(c => {
     if (c.id === 'avoid_bankrupt' && stratUniqueTaken.avoid_bankrupt) return false;
+    if (c.id === 'third_die_once' && thirdDiceEnabled) return false;
     if (c.id === 'cheap_house' && stratUniqueTaken.cheap_house) return false;
     if (c.id === 'expensive_house' && stratUniqueTaken.expensive_house) return false;
     return true;
@@ -5679,8 +5774,8 @@ function tryUseStratCard(handIdx) {
   if (!card) return;
 
   // Cards that need a target
-  const needsLand = [...Object.keys(B3_LAND), 'clear_effect', 'trap', 'olympics', 'discount', 'rent_boost_25', 'trap_3', 'olympics_100', 'discount_75', 'rent_boost_50', 'discount_25', 'rent_boost_75'].includes(cardId);
-  const needsPlayer = [...B3_TARGET_PLAYER, 'jail_player', 'parking_player', 'start_player', 'drag_to_me', 'swap', 'goto_player', 'jail_two', 'steal_choose_50', 'steal_choose_100', 'steal_choose_150', 'steal_choose_200', 'steal_choose_300', 'steal_choose_25pct', 'steal_choose_40pct', 'steal_choose_500', 'steal_choose_half_cap'].includes(cardId);
+  const needsLand = [...Object.keys(B3_LAND), 'clear_effect', 'trap', 'rent_boost_50', 'discount_25'].includes(cardId);
+  const needsPlayer = [...B3_TARGET_PLAYER, 'jail_player', 'parking_player', 'start_player', 'drag_to_me', 'swap', 'goto_player', 'jail_two', 'steal_choose_100', 'steal_choose_200', 'steal_choose_25pct', 'steal_choose_500'].includes(cardId);
 
   if (needsLand) {
     if (cardId === 'clear_effect' && !Object.keys(landEffects).length) {
@@ -5729,7 +5824,7 @@ function landRefFromKey(key) {
 
 // Kartu jebakan?
 function isTrapCardId(cardId) {
-  return cardId === 'trap' || cardId === 'trap_3' || !!(B3_LAND[cardId] && B3_LAND[cardId].type === 'trap');
+  return cardId === 'trap' || !!(B3_LAND[cardId] && B3_LAND[cardId].type === 'trap');
 }
 // Petak yang boleh dipilih untuk kartu efek tanah. Jebakan bisa dipasang di SEMUA petak
 // (tanah, stasiun, dan non-tanah seperti sudut, pajak, kesempatan, dana umum, roda).
@@ -6070,14 +6165,14 @@ function applyStratCardCore(cardId, opts) {
     enableRoll();
     return;
   }
-  if (['trap','olympics','discount','trap_3','olympics_100','discount_75','rent_boost_25','rent_boost_50','discount_25','rent_boost_75'].includes(cardId)) {
+  if (['trap','rent_boost_50','discount_25'].includes(cardId)) {
     if (landEffects[opts.landId]) {
       showToast('Tanah ini masih punya efek!');
       p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI(); return;
     }
-    const typeMap = { trap:'trap', trap_3:'trap', olympics:'olympics', olympics_100:'olympics', rent_boost_25:'olympics', rent_boost_50:'olympics', rent_boost_75:'olympics', discount:'discount', discount_75:'discount', discount_25:'discount' };
-    const skipTurns = cardId === 'trap_3' ? 3 : 2;
-    const rentMult = cardId === 'olympics_100' ? 2 : (cardId === 'rent_boost_25' ? 1.25 : (cardId === 'rent_boost_50' ? 1.5 : (cardId === 'rent_boost_75' ? 1.75 : (cardId === 'discount_75' ? 0.25 : (cardId === 'discount_25' ? 0.75 : null)))));
+    const typeMap = { trap:'trap', rent_boost_50:'olympics', discount_25:'discount' };
+    const skipTurns = 2;
+    const rentMult = cardId === 'rent_boost_50' ? 1.5 : (cardId === 'discount_25' ? 0.75 : null);
     landEffects[opts.landId] = { type: typeMap[cardId], skipTurns, rentMult };
     const ref = landRefFromKey(opts.landId);
     log(`${p.name} pasang efek di ${ref.sp.name}${ref.level === 'inner' ? ' (Dalam)' : ''}`, 'important');
@@ -6194,29 +6289,8 @@ function applyStratCardCore(cardId, opts) {
     markStratMovedNoLand();
     return;
   }
-  if (cardId === 'back3') {
-    p.pos = (p.pos - 3 + BOARD_LEN) % BOARD_LEN;
-    updateTokens();
-    log(`${p.name} mundur 3 petak → ${SPACES[p.pos].name}`, 'important');
-    landOnSpace();
-    return;
-  }
-  if (cardId === 'forward3') {
-    // Move forward with GO check
-    for (let i = 0; i < 3; i++) {
-      p.pos = (p.pos + 1) % BOARD_LEN;
-      if (p.pos === 0) {
-        p.money += goReward();
-        moneyAnim(currentPlayer, goReward());
-        log(`${p.name} melewati MULAI +Rp${goReward()}`, 'money');
-      }
-    }
-    updateTokens();
-    updatePlayersPanel();
-    log(`${p.name} maju 3 petak → ${SPACES[p.pos].name}`, 'important');
-    landOnSpace();
-    return;
-  }
+  
+  
   if (cardId === 'goto_player') {
     const t = players[opts.targetIdx];
     const dual = isMulti();
@@ -6248,43 +6322,35 @@ function applyStratCardCore(cardId, opts) {
     if (!o.length) return null; o.sort((a,b)=>b.op.money-a.op.money); return o[0];
   };
 
-  if (cardId==='money_50'){p.money+=50;moneyAnim(currentPlayer,50);log(`${p.name}:+Rp50`,'money');updatePlayersPanel();return;}
-  if (cardId==='money_100'){p.money+=100;moneyAnim(currentPlayer,100);log(`${p.name}:+Rp100`,'money');updatePlayersPanel();return;}
+  
+  
   if (cardId==='money_200'){p.money+=200;moneyAnim(currentPlayer,200);log(`${p.name}:+Rp200`,'money');updatePlayersPanel();return;}
   if (cardId==='money_400'){p.money+=400;moneyAnim(currentPlayer,400);log(`${p.name}:+Rp400`,'money');updatePlayersPanel();return;}
   if (cardId==='money_1000'){p.money+=1000;moneyAnim(currentPlayer,1000);log(`${p.name}:+Rp1000`,'money');updatePlayersPanel();return;}
-  if (cardId==='heal_money'){p.money+=75;moneyAnim(currentPlayer,75);log(`${p.name}:+Rp75`,'money');updatePlayersPanel();return;}
-  if (cardId==='energy_2'){addEnergy(p,2);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='energy_3'){addEnergy(p,3);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='energy_5'){addEnergy(p,5);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='energy_8'){addEnergy(p,8);updateStratUI();updatePlayersPanel();return;}
+  
+  
+  
+  
+  
   if (cardId==='forward1'){moveN(1);return;}
-  if (cardId==='forward2'){moveN(2);return;}
+  
   if (cardId==='forward5'){moveN(3);return;}
   if (cardId==='back1'){moveN(-1);return;}
-  if (cardId==='back2'){moveN(-2);return;}
+  
   if (cardId==='back5'){moveN(-3);return;}
-  if (cardId==='random_forward'){moveN(1+Math.floor(Math.random()*4));return;}
-  if (cardId==='claim_parking'){
-    if(freeParkingPot>0){const pot=freeParkingPot;freeParkingPot=0;p.money+=pot;moneyAnim(currentPlayer,pot);log(`${p.name} ambil Parkir Rp${pot}`,'money');updateFreeParkingDisplay();updatePlayersPanel();}
-    else showToast('Parkir kosong'); return;
-  }
-  if (cardId==='pay_tax_half'){p.nextTaxHalfTurns=3;log(`${p.name}: pajak 50% selama 3 giliran`);return;}
-  if (cardId==='go_bonus_50'){p.nextGoBonus=(p.nextGoBonus||0)+50;return;}
-  if (cardId==='triple_go'){p.nextGoBonus=(p.nextGoBonus||0)+400;return;}
+  
+  
+  
+  
+  
   if (cardId==='extra_roll_card'){enableRoll(true);return;}
-  if (cardId==='from_all_10'){
-    let t=0;players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;const g=Math.min(10,op.money);op.money-=g;t+=g;moneyAnim(i,-g);});p.money+=t;moneyAnim(currentPlayer,t);updatePlayersPanel();return;
-  }
-  if (cardId==='steal_50'||cardId==='steal_100'||cardId==='steal_200'){
-    const amt=cardId==='steal_200'?200:(cardId==='steal_100'?100:100);const rich=richest();
+  
+  if (cardId==='steal_50' || cardId==='steal_200'){
+    const amt=cardId==='steal_200'?200:100;const rich=richest();
     if(!rich){showToast('Tidak ada target');return;}
     const take=Math.min(amt,rich.op.money);rich.op.money-=take;p.money+=take;moneyAnim(rich.i,-take);moneyAnim(currentPlayer,take);updatePlayersPanel();return;
   }
-  if (cardId==='stock_div_now'){
-    let div=0;Object.entries(stockOwned[currentPlayer]||{}).forEach(([sid,qty])=>{const s=STOCKS.find(x=>x.id===sid);if(s)div+=s.dividend*qty;});
-    if(div>0){p.money+=div;moneyAnim(currentPlayer,div);updatePlayersPanel();} else showToast('Tidak punya saham'); return;
-  }
+  
   if (cardId==='jail_self_out'){
     if(p.inJail){
       p.inJail=false;p.jailTurns=0;
@@ -6301,7 +6367,10 @@ function applyStratCardCore(cardId, opts) {
   }
   if (cardId==='teleport_rail'){
     const st=RAIL_IDS.filter(id=>owned[id]===currentPlayer&&!mortgaged[id]);
-    if(!st.length){showToast('Tidak punya stasiun');return;} p.pos=st[Math.floor(Math.random()*st.length)];updateTokens();markStratMovedNoLand();return;
+    if(!st.length){ // tidak punya stasiun: pindah ke stasiun mana pun
+      p.pos=RAIL_IDS[Math.floor(Math.random()*RAIL_IDS.length)]; p.inJail=false; updateTokens(); log(`${p.name} ke ${SPACES[p.pos].name} (tidak punya stasiun, ke stasiun mana pun)`); landOnSpace(); return;
+    }
+    p.pos=st[Math.floor(Math.random()*st.length)];updateTokens();markStratMovedNoLand();return;
   }
   if (cardId==='free_house'||cardId==='free_2houses'){
     const n=cardId==='free_2houses'?2:1;
@@ -6317,13 +6386,7 @@ function applyStratCardCore(cardId, opts) {
     idxs.forEach(i=>{jailPlayer(players[i]);log(`${p.name} memasukkan ${players[i].name} ke PENJARA!`,'important');});
     updateTokens();updatePlayersPanel();return;
   }
-  if (cardId==='wipe_2houses'){
-    const eg=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].forEach(g=>{const ids=SPACES.filter(s=>s.group===g).map(s=>s.id);if(ids.every(id=>owned[id]===i)&&ids.some(id=>(houses[id]||0)>0))eg.push({g,i});});});
-    if(!eg.length){showToast('Tidak ada rumah lawan');return;}
-    const pick=eg[Math.floor(Math.random()*eg.length)];const ids=SPACES.filter(s=>s.group===pick.g).map(s=>s.id);let rem=0;
-    for(let k=0;k<2;k++){const el=ids.filter(id=>(houses[id]||0)>0);if(!el.length)break;const maxH=Math.max(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===maxH);const id=c[Math.floor(Math.random()*c.length)];houses[id]--;if(houses[id]<=0)delete houses[id];rem++;}
-    log(`${p.name} hancur ${rem} rumah`);updateOwnerBars();return;
-  }
+  
   if (cardId==='steal_property'){
     const landId = opts.landId;
     const ownerIdx = opts.ownerIdx;
@@ -6371,9 +6434,9 @@ function applyStratCardCore(cardId, opts) {
   }
   if (cardId==='rent_to_me'){
     const ep=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{if(!mortgaged[id]&&SPACES[id].type==='property')ep.push({id,i});});});
-    if(!ep.length){showToast('Tidak ada target');p.hand.push(cardId);p.energy+=stratCost(cardId);updateStratUI();updatePlayersPanel();return;} const pick=ep[Math.floor(Math.random()*ep.length)];const baseRent=(SPACES[pick.id].rent||10);const rent=baseRent*2;const take=Math.min(rent,players[pick.i].money);
+    if(!ep.length){showToast('Tidak ada target');p.hand.push(cardId);p.energy+=stratCost(cardId);updateStratUI();updatePlayersPanel();return;} const pick=ep[Math.floor(Math.random()*ep.length)];const baseRent=(SPACES[pick.id].rent||10);const rent=baseRent*5;const take=Math.min(rent,players[pick.i].money);
     players[pick.i].money-=take;p.money+=take;moneyAnim(pick.i,-take);moneyAnim(currentPlayer,take);
-    log(`${p.name} Tarik Sewa: ${SPACES[pick.id].name} milik ${players[pick.i].name} — sewa dasar Rp${baseRent} ×2 = Rp${rent}`+(take<rent?` (hanya dapat Rp${take}, uang lawan kurang)`:` (terima Rp${take})`),'money');
+    log(`${p.name} Tarik Sewa: ${SPACES[pick.id].name} milik ${players[pick.i].name} — sewa dasar Rp${baseRent} ×5 = Rp${rent}`+(take<rent?` (hanya dapat Rp${take}, uang lawan kurang)`:` (terima Rp${take})`),'money');
     updatePlayersPanel();return;
   }
   if (cardId==='unmort_discount'){
@@ -6385,45 +6448,24 @@ function applyStratCardCore(cardId, opts) {
 
   // ===== HANDLER 50 KARTU BARU =====
   if (cardId==='money_30'){p.money+=50;moneyAnim(currentPlayer,50);log(`${p.name}:+Rp50`,'money');updatePlayersPanel();return;}
-  if (cardId==='money_60'){p.money+=60;moneyAnim(currentPlayer,60);log(`${p.name}:+Rp60`,'money');updatePlayersPanel();return;}
-  if (cardId==='money_80'){p.money+=80;moneyAnim(currentPlayer,80);log(`${p.name}:+Rp80`,'money');updatePlayersPanel();return;}
-  if (cardId==='energy_1'){addEnergy(p,1);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='energy_4'){addEnergy(p,4);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='forward4'){moveN(4);return;}
-  if (cardId==='back4'){moveN(-4);return;}
+  
+  
+  
+  
+  
+  
   if (cardId==='random_back'){moveN(-(1+Math.floor(Math.random()*3)));return;}
-  if (cardId==='heal_money_40'){p.money+=40;moneyAnim(currentPlayer,40);log(`${p.name}:+Rp40`,'money');updatePlayersPanel();return;}
+  
   if (cardId==='go_bonus_25'){p.nextGoBonus=(p.nextGoBonus||0)+25;log(`${p.name}: MULAI berikutnya +Rp25`);return;}
-  if (cardId==='pay_tax_zero'){p.nextTaxZeroTurns=3;log(`${p.name}: pajak GRATIS selama 3 giliran`);return;}
-  if (cardId==='claim_parking_half'){
-    if(freeParkingPot>0){const pot=Math.floor(freeParkingPot/2);freeParkingPot-=pot;p.money+=pot;moneyAnim(currentPlayer,pot);log(`${p.name} ambil ½ Parkir Rp${pot}`,'money');updateFreeParkingDisplay();updatePlayersPanel();}
-    else showToast('Parkir kosong'); return;
-  }
-  if (cardId==='stock_div_half'){
-    let div=0;Object.entries(stockOwned[currentPlayer]||{}).forEach(([sid,qty])=>{const s=STOCKS.find(x=>x.id===sid);if(s)div+=s.dividend*qty;});
-    div=Math.floor(div/2);
-    if(div>0){p.money+=div;moneyAnim(currentPlayer,div);updatePlayersPanel();} else showToast('Tidak punya saham'); return;
-  }
-  if (cardId==='forward6'){moveN(6);return;}
-  if (cardId==='back6'){moveN(-6);return;}
-  if (cardId==='money_250'){p.money+=250;moneyAnim(currentPlayer,250);log(`${p.name}:+Rp250`,'money');updatePlayersPanel();return;}
-  if (cardId==='energy_6'){addEnergy(p,6);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='steal_75'||cardId==='steal_150'||cardId==='steal_300'){
-    const amt=cardId==='steal_300'?300:(cardId==='steal_150'?150:75);const rich=richest();
-    if(!rich){showToast('Tidak ada target');return;}
-    const take=Math.min(amt,rich.op.money);rich.op.money-=take;p.money+=take;moneyAnim(rich.i,-take);moneyAnim(currentPlayer,take);updatePlayersPanel();return;
-  }
-  if (cardId==='free_1house'){
-    const groups=[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].filter(g=>ownsFullGroup(currentPlayer,g));
-    if(!groups.length){showToast('Butuh monopoli');return;}
-    const group=groups[Math.floor(Math.random()*groups.length)];
-    const ids=SPACES.filter(s=>s.group===group).map(s=>s.id);
-    const el=ids.filter(id=>!mortgaged[id]&&(houses[id]||0)<5);
-    if(!el.length){showToast('Tidak bisa bangun');return;}
-    const minH=Math.min(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===minH);
-    const id=c[Math.floor(Math.random()*c.length)];houses[id]=(houses[id]||0)+1;
-    log(`${p.name}:+1 rumah gratis`);updateOwnerBars();updatePlayersPanel();return;
-  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
   if (cardId==='wipe_1house'){
     const eg=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].forEach(g=>{const ids=SPACES.filter(s=>s.group===g).map(s=>s.id);if(ids.every(id=>owned[id]===i)&&ids.some(id=>(houses[id]||0)>0))eg.push({g,i});});});
     if(!eg.length){showToast('Tidak ada rumah lawan');return;}
@@ -6447,16 +6489,8 @@ function applyStratCardCore(cardId, opts) {
     p.pos=0;p.inJail=false;p.money+=goReward();moneyAnim(currentPlayer,goReward());updateTokens();updatePlayersPanel();
     log(`${p.name} ke MULAI +Rp${goReward()}`,'important');markStratMovedNoLand();return;
   }
-  if (cardId==='money_500'){p.money+=500;moneyAnim(currentPlayer,500);log(`${p.name}:+Rp500`,'money');updatePlayersPanel();return;}
-  if (cardId==='free_3houses'){
-    const n=3;
-    const groups=[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].filter(g=>ownsFullGroup(currentPlayer,g));
-    if(!groups.length){showToast('Butuh monopoli');return;}
-    const group=groups[Math.floor(Math.random()*groups.length)];
-    const ids=SPACES.filter(s=>s.group===group).map(s=>s.id); let added=0;
-    for(let k=0;k<n;k++){const el=ids.filter(id=>!mortgaged[id]&&(houses[id]||0)<5);if(!el.length)break;const minH=Math.min(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===minH);const id=c[Math.floor(Math.random()*c.length)];houses[id]=(houses[id]||0)+1;added++;}
-    log(`${p.name}:+${added} rumah gratis`);updateOwnerBars();updatePlayersPanel();return;
-  }
+  
+  
   if (cardId==='wipe_3houses'){
     const eg=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].forEach(g=>{const ids=SPACES.filter(s=>s.group===g).map(s=>s.id);if(ids.every(id=>owned[id]===i)&&ids.some(id=>(houses[id]||0)>0))eg.push({g,i});});});
     if(!eg.length){showToast('Tidak ada rumah lawan');return;}
@@ -6464,23 +6498,8 @@ function applyStratCardCore(cardId, opts) {
     for(let k=0;k<2;k++){const el=ids.filter(id=>(houses[id]||0)>0);if(!el.length)break;const maxH=Math.max(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===maxH);const id=c[Math.floor(Math.random()*c.length)];houses[id]--;if(houses[id]<=0)delete houses[id];rem++;}
     log(`${p.name} hancur ${rem} rumah`);updateOwnerBars();return;
   }
-  if (cardId==='jail_three'){
-    const others=players.map((op,i)=>i).filter(i=>i!==currentPlayer&&!players[i].bankrupt);
-    const shuffled=others.sort(()=>Math.random()-0.5).slice(0,3);
-    shuffled.forEach(j=>{jailPlayer(players[j]);});
-    updateTokens();log(`${p.name}: ${shuffled.length} pemain ke Penjara!`,'important');return;
-  }
-  if (cardId==='steal_stock'){
-    const rich=richest(); if(!rich){showToast('Tidak ada target');return;}
-    const stocks=Object.entries(stockOwned[rich.i]||{}).filter(([k,v])=>v>0);
-    if(!stocks.length){showToast('Target tidak punya saham');return;}
-    const [sid]=stocks[Math.floor(Math.random()*stocks.length)];
-    stockOwned[rich.i][sid]--; if(stockOwned[rich.i][sid]<=0)delete stockOwned[rich.i][sid];
-    if(!stockOwned[currentPlayer][sid])stockOwned[currentPlayer][sid]=0;
-    stockOwned[currentPlayer][sid]++;
-    const s=STOCKS.find(x=>x.id===sid);
-    log(`${p.name} rampas 1 saham ${s?s.name:sid} dari ${rich.op.name}`,'important');updatePlayersPanel();return;
-  }
+  
+  
   if (cardId==='force_mortgage'){
     const cands=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{
       if(mortgaged[id])return; if((houses[id]||0)>0)return;
@@ -6495,33 +6514,11 @@ function applyStratCardCore(cardId, opts) {
     log(`${p.name} paksa gadai ${pick.sp.name} milik ${players[pick.i].name} (+Rp${mval} untuk pemilik)`,'important');
     updatePlayersPanel();updateOwnerBars();return;
   }
-  if (cardId==='full_energy'){p.energy=STRAT_ENERGY_MAX;updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='steal_property_cheap'){
-    const cands=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{
-      const sp=SPACES[id]; if(!sp||(houses[id]||0)>0)return;
-      if(sp.type==='property'||sp.type==='rail'||sp.type==='util')cands.push({id,i,price:sp.price||0,name:sp.name,op});
-    });});
-    if(!cands.length){showToast('Tidak ada properti murah lawan');return;}
-    cands.sort((a,b)=>a.price-b.price);
-    const pick=cands[0];
-    const owner=players[pick.i];
-    const idx=owner.props.indexOf(pick.id);if(idx>=0)owner.props.splice(idx,1);
-    owned[pick.id]=currentPlayer;p.props.push(pick.id);
-    log(`${p.name} MERAMPAS ${pick.name} (termurah) dari ${owner.name}!`,'important');
-    updatePlayersPanel();updateOwnerBars();return;
-  }
-  if (cardId==='jail_all_strong'){
-    players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;jailPlayer(op);op.skipTurns=(op.skipTurns||0)+1;});
-    updateTokens();log(`${p.name}: semua lawan ke Penjara + skip 1!`,'important');return;
-  }
-  if (cardId==='god_money'){p.money+=800;moneyAnim(currentPlayer,800);addEnergy(p,8);updateStratUI();updatePlayersPanel();log(`${p.name}:+Rp800 & ⚡8`,'money');return;}
-  if (cardId==='destroy_hotel'){
-    const cands=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{if((houses[id]||0)===5)cands.push({id,i});});});
-    if(!cands.length){showToast('Tidak ada hotel lawan');return;}
-    const pick=cands[Math.floor(Math.random()*cands.length)];
-    delete houses[pick.id];
-    log(`${p.name} hancurkan hotel di ${SPACES[pick.id].name}!`,'important');updateOwnerBars();return;
-  }
+  
+  
+  
+  
+  
   if (cardId==='steal_all_stocks'){
     const rich=richest(); if(!rich){showToast('Tidak ada target');return;}
     const stocks=Object.entries(stockOwned[rich.i]||{}).filter(([k,v])=>v>0);
@@ -6534,13 +6531,7 @@ function applyStratCardCore(cardId, opts) {
     log(`${p.name} rampas 1 saham ${s?s.name:sid} dari ${rich.op.name}`,'important');updatePlayersPanel();return;
   }
 
-  if (cardId==='wipe_all_houses_group'){
-    const eg=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].forEach(g=>{const ids=SPACES.filter(s=>s.group===g).map(s=>s.id);if(ids.every(id=>owned[id]===i)&&ids.some(id=>(houses[id]||0)>0))eg.push({g,i});});});
-    if(!eg.length){showToast('Tidak ada grup rumah lawan');return;}
-    const pick=eg[Math.floor(Math.random()*eg.length)];const ids=SPACES.filter(s=>s.group===pick.g).map(s=>s.id);
-    let rem=0;ids.forEach(id=>{rem+=houses[id]||0;delete houses[id];});
-    log(`${p.name} hancurkan SEMUA rumah grup ${pick.g} (${rem} rumah)!`,'important');updateOwnerBars();return;
-  }
+  
 
   // ===== HANDLER BATCH 2 (50 kartu) =====
   const poorest = () => {
@@ -6551,8 +6542,8 @@ function applyStratCardCore(cardId, opts) {
     const o = players.map((op,i)=>({op,i})).filter(x=>x.i!==currentPlayer&&!x.op.bankrupt);
     if (!o.length) return null; return o[Math.floor(Math.random()*o.length)];
   };
-  if (cardId==='steal_20'||cardId==='steal_40'||cardId==='steal_120'||cardId==='steal_180'||cardId==='steal_250'||cardId==='steal_350'||cardId==='steal_500'){
-    const amtMap={steal_20:40,steal_40:40,steal_120:120,steal_180:180,steal_250:250,steal_350:350,steal_500:500};
+  if (cardId==='steal_20' || cardId==='steal_500'){
+    const amtMap={steal_20:40,steal_500:500};
     const amt=amtMap[cardId]; const rich=richest();
     if(!rich){showToast('Tidak ada target');return;}
     const take=Math.min(amt,rich.op.money); rich.op.money-=take; p.money+=take;
@@ -6569,69 +6560,37 @@ function applyStratCardCore(cardId, opts) {
     const take=Math.min(40,t.op.money); t.op.money-=take; p.money+=take;
     moneyAnim(t.i,-take); moneyAnim(currentPlayer,take); updatePlayersPanel(); return;
   }
-  if (cardId==='money_35'){p.money+=35;moneyAnim(currentPlayer,35);updatePlayersPanel();return;}
-  if (cardId==='money_90'){p.money+=90;moneyAnim(currentPlayer,90);updatePlayersPanel();return;}
-  if (cardId==='energy_plus1'){addEnergy(p,1);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='forward_1b'){moveN(1);return;}
-  if (cardId==='back_1b'){moveN(-1);return;}
-  if (cardId==='heal_55'){p.money+=55;moneyAnim(currentPlayer,55);updatePlayersPanel();return;}
-  if (cardId==='go_bonus_30'){p.nextGoBonus=(p.nextGoBonus||0)+30;return;}
-  if (cardId==='claim_parking_quarter'){
-    if(freeParkingPot>0){const pot=Math.floor(freeParkingPot/4);freeParkingPot-=pot;p.money+=pot;moneyAnim(currentPlayer,pot);updateFreeParkingDisplay();updatePlayersPanel();}
-    else showToast('Parkir kosong'); return;
-  }
+  
+  
+  
+  
+  
+  
+  
+  
   if (cardId==='random_forward_2'){moveN(1+Math.floor(Math.random()*2));return;}
-  if (cardId==='money_from_all_50'||cardId==='money_from_all_100'){
-    const amt=cardId==='money_from_all_100'?100:50;
-    let t=0;players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;const g=Math.min(amt,op.money);op.money-=g;t+=g;moneyAnim(i,-g);});p.money+=t;moneyAnim(currentPlayer,t);updatePlayersPanel();
-    log(`${p.name} terima Rp${t} dari semua`,'money'); return;
-  }
-  if (cardId==='steal_from_all_25'){
-    const amt=25;
-    let t=0;players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;const g=Math.min(amt,op.money);op.money-=g;t+=g;moneyAnim(i,-g);});p.money+=t;moneyAnim(currentPlayer,t);updatePlayersPanel();
-    log(`${p.name} rampas total Rp${t} dari semua`,'important'); return;
-  }
-  if (cardId==='steal_half_richest'||cardId==='steal_richest_20pct'||cardId==='steal_richest_half_cap'){
+  
+  
+  if (cardId==='steal_half_richest' || cardId==='steal_richest_20pct'){
     const rich=richest(); if(!rich){showToast('Tidak ada target');return;}
     let pct=0.1, cap=200;
     if(cardId==='steal_richest_20pct'){pct=0.2;cap=400;}
-    if(cardId==='steal_richest_half_cap'){pct=0.5;cap=600;}
+    
     const take=Math.min(Math.floor(rich.op.money*pct), cap, rich.op.money);
     rich.op.money-=take; p.money+=take; moneyAnim(rich.i,-take); moneyAnim(currentPlayer,take); updatePlayersPanel();
     log(`${p.name} rampas Rp${take} dari ${rich.op.name}`,'important'); return;
   }
-  if (cardId==='money_300'){p.money+=300;moneyAnim(currentPlayer,300);updatePlayersPanel();return;}
-  if (cardId==='energy_7'){addEnergy(p,7);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='forward7'){moveN(7);return;}
-  if (cardId==='back7'){moveN(-7);return;}
-  if (cardId==='free_house_2'||cardId==='free_4houses'){
-    const n=cardId==='free_4houses'?4:2;
-    const groups=[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].filter(g=>ownsFullGroup(currentPlayer,g));
-    if(!groups.length){showToast('Butuh monopoli');return;}
-    const group=groups[Math.floor(Math.random()*groups.length)];
-    const ids=SPACES.filter(s=>s.group===group).map(s=>s.id); let added=0;
-    for(let k=0;k<n;k++){const el=ids.filter(id=>!mortgaged[id]&&(houses[id]||0)<5);if(!el.length)break;const minH=Math.min(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===minH);const id=c[Math.floor(Math.random()*c.length)];houses[id]=(houses[id]||0)+1;added++;}
-    log(`${p.name}:+${added} rumah gratis`);updateOwnerBars();updatePlayersPanel();return;
-  }
-  if (cardId==='wipe_house_2'||cardId==='wipe_4houses'){
-    const n=cardId==='wipe_4houses'?4:2;
-    const eg=[];players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;[...new Set(SPACES.filter(s=>s.group).map(s=>s.group))].forEach(g=>{const ids=SPACES.filter(s=>s.group===g).map(s=>s.id);if(ids.every(id=>owned[id]===i)&&ids.some(id=>(houses[id]||0)>0))eg.push({g,i});});});
-    if(!eg.length){showToast('Tidak ada rumah lawan');return;}
-    const pick=eg[Math.floor(Math.random()*eg.length)];const ids=SPACES.filter(s=>s.group===pick.g).map(s=>s.id);let rem=0;
-    for(let k=0;k<n;k++){const el=ids.filter(id=>(houses[id]||0)>0);if(!el.length)break;const maxH=Math.max(...el.map(id=>houses[id]||0));const c=el.filter(id=>(houses[id]||0)===maxH);const id=c[Math.floor(Math.random()*c.length)];houses[id]--;if(houses[id]<=0)delete houses[id];rem++;}
-    log(`${p.name} hancur ${rem} rumah`);updateOwnerBars();return;
-  }
-  if (cardId==='teleport_rail_any'){
-    const st=RAIL_IDS; p.pos=st[Math.floor(Math.random()*st.length)]; p.inJail=false; updateTokens(); log(`${p.name} ke ${SPACES[p.pos].name}`); landOnSpace(); return;
-  }
+  
+  
+  
+  
+  
+  
   if (cardId==='jail_random'){
     const t=randomOther(); if(!t){showToast('Tidak ada target');return;}
     jailPlayer(t.op); updateTokens(); updatePlayersPanel(); log(`${p.name} masukkan ${t.op.name} ke Penjara`,'important'); return;
   }
-  if (cardId==='parking_pot_steal'){
-    if(freeParkingPot>0){const pot=freeParkingPot;freeParkingPot=0;p.money+=pot;moneyAnim(currentPlayer,pot);updateFreeParkingDisplay();updatePlayersPanel();log(`${p.name} ambil seluruh Parkir Rp${pot}`,'money');}
-    else showToast('Parkir kosong'); return;
-  }
+  
   if (cardId==='stock_steal_1'){
     const cand=players.map((op,i)=>({op,i})).filter(x=>x.i!==currentPlayer&&!x.op.bankrupt&&Object.values(stockOwned[x.i]||{}).some(v=>v>0));
     if(!cand.length){showToast('Tidak ada yang punya saham');return;}
@@ -6642,50 +6601,23 @@ function applyStratCardCore(cardId, opts) {
     if(!stockOwned[currentPlayer][sid])stockOwned[currentPlayer][sid]=0; stockOwned[currentPlayer][sid]++;
     const st=STOCKS.find(x=>x.id===sid); log(`${p.name} rampas 1 saham ${st?st.name:sid} dari ${pick.op.name}`,'important'); updatePlayersPanel(); return;
   }
-  if (cardId==='money_600'){p.money+=600;moneyAnim(currentPlayer,600);updatePlayersPanel();return;}
-  if (cardId==='energy_12'){addEnergy(p,12);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='jail_four'){
-    const others=players.map((op,i)=>i).filter(i=>i!==currentPlayer&&!players[i].bankrupt);
-    const shuffled=others.sort(()=>Math.random()-0.5).slice(0,4);
-    shuffled.forEach(j=>{jailPlayer(players[j]);});
-    updateTokens(); log(`${p.name}: ${shuffled.length} pemain ke Penjara!`,'important'); return;
-  }
+  
+  
+  
   if (cardId==='steal_all_money_poor'){
     const poor=poorest(); if(!poor){showToast('Tidak ada target');return;}
     const take=Math.min(200, poor.op.money); poor.op.money-=take; p.money+=take;
     moneyAnim(poor.i,-take); moneyAnim(currentPlayer,take); updatePlayersPanel();
     log(`${p.name} ambil Rp${take} dari ${poor.op.name}`,'important'); return;
   }
-  if (cardId==='energy_15'){addEnergy(p,15);updateStratUI();updatePlayersPanel();return;}
-  if (cardId==='steal_property_mid'){
-    const cands=[]; players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{
-      const sp=SPACES[id]; if(!sp||(houses[id]||0)>=5)return;
-      if(sp.type==='property'||sp.type==='rail'||sp.type==='util') cands.push({id,i,price:sp.price||0,name:sp.name});
-    });});
-    if(!cands.length){showToast('Tidak ada properti');return;}
-    cands.sort((a,b)=>a.price-b.price); const mid=cands[Math.floor(cands.length/2)];
-    const owner=players[mid.i]; const idx=owner.props.indexOf(mid.id); if(idx>=0)owner.props.splice(idx,1);
-    owned[mid.id]=currentPlayer; p.props.push(mid.id);
-    log(`${p.name} MERAMPAS ${mid.name} dari ${owner.name}!`,'important'); updatePlayersPanel(); updateOwnerBars(); return;
-  }
-  if (cardId==='wipe_all_houses_one'){
-    const cands=[]; players.forEach((op,i)=>{if(i===currentPlayer||op.bankrupt)return;op.props.forEach(id=>{if((houses[id]||0)>0)cands.push({id,i});});});
-    if(!cands.length){showToast('Tidak ada rumah lawan');return;}
-    const pick=cands[Math.floor(Math.random()*cands.length)];
-    const h=houses[pick.id]||0; delete houses[pick.id];
-    log(`${p.name} hancurkan ${h} bangunan di ${SPACES[pick.id].name}!`,'important'); updateOwnerBars(); return;
-  }
-  if (cardId==='teleport_and_steal'){
-    const rich=richest(); if(!rich){showToast('Tidak ada target');return;}
-    p.pos=rich.op.pos; if(currentMapId==='dual') p.level=rich.op.level; p.inJail=false;
-    const take=Math.min(100,rich.op.money); rich.op.money-=take; p.money+=take;
-    moneyAnim(rich.i,-take); moneyAnim(currentPlayer,take); updateTokens(); updatePlayersPanel();
-    log(`${p.name} teleport ke ${rich.op.name} & rampas Rp${take}`,'important'); landOnSpace(); return;
-  }
+  
+  
+  
+  
 
   // ===== HANDLER STEAL PILIH PEMAIN =====
-  if (['steal_choose_50','steal_choose_100','steal_choose_150','steal_choose_200','steal_choose_300','steal_choose_500'].includes(cardId)) {
-    const amtMap = { steal_choose_50:50, steal_choose_100:100, steal_choose_150:150, steal_choose_200:200, steal_choose_300:300, steal_choose_500:500 };
+  if (['steal_choose_100','steal_choose_200','steal_choose_500'].includes(cardId)) {
+    const amtMap = { steal_choose_100:100, steal_choose_200:200, steal_choose_500:500 };
     const amt = amtMap[cardId];
     const tIdx = opts.targetIdx;
     if (tIdx == null || !players[tIdx] || players[tIdx].bankrupt || tIdx === currentPlayer) {
@@ -6703,7 +6635,7 @@ function applyStratCardCore(cardId, opts) {
     log(`${p.name} merampas Rp${take} dari ${t.name} (pilihan)`, 'important');
     return;
   }
-  if (cardId === 'steal_choose_25pct' || cardId === 'steal_choose_40pct' || cardId === 'steal_choose_half_cap') {
+  if (cardId === 'steal_choose_25pct') {
     const tIdx = opts.targetIdx;
     if (tIdx == null || !players[tIdx] || players[tIdx].bankrupt || tIdx === currentPlayer) {
       showToast('Pilih pemain yang valid!');
@@ -6712,8 +6644,8 @@ function applyStratCardCore(cardId, opts) {
     }
     const t = players[tIdx];
     let pct = 0.25, cap = 250;
-    if (cardId === 'steal_choose_40pct') { pct = 0.35; cap = 350; }
-    if (cardId === 'steal_choose_half_cap') { pct = 0.5; cap = 500; }
+    
+    
     const take = Math.min(Math.floor(t.money * pct), cap, t.money);
     t.money -= take;
     p.money += take;
@@ -6723,23 +6655,7 @@ function applyStratCardCore(cardId, opts) {
     log(`${p.name} merampas Rp${take} (${Math.round(pct*100)}%) dari ${t.name}`, 'important');
     return;
   }
-  if (cardId === 'steal_choose_all_cap') {
-    const tIdx = opts.targetIdx;
-    if (tIdx == null || !players[tIdx] || players[tIdx].bankrupt || tIdx === currentPlayer) {
-      showToast('Pilih pemain yang valid!');
-      p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI();
-      return;
-    }
-    const t = players[tIdx];
-    const take = Math.min(200, t.money);
-    t.money -= take;
-    p.money += take;
-    moneyAnim(tIdx, -take);
-    moneyAnim(currentPlayer, take);
-    updatePlayersPanel();
-    log(`${p.name} merampas Rp${take} (semua, max 200) dari ${t.name}`, 'important');
-    return;
-  }
+  
 
   if (cardId === 'rent_voucher' || cardId === 'double_bonus') {
     const isV = cardId === 'rent_voucher';
@@ -6762,6 +6678,18 @@ function applyStratCardCore(cardId, opts) {
     p.buyCoupon = true;
     log(`${p.name} memakai Kupon Beli — pembelian tanah langsung berikutnya diskon 15%.`, 'important');
     showToast('🎫 Kupon Beli aktif!');
+    updatePlayersPanel();
+    return;
+  }
+  if (cardId === 'third_die_once') {
+    if (thirdDiceEnabled || p.thirdOnce) {
+      showToast(thirdDiceEnabled ? '🎲 Dadu Ketiga sudah aktif di permainan ini.' : '🎲 Tiga Dadu sudah aktif — pakai dulu saat melempar.');
+      p.hand.push(cardId); p.energy += stratCost(cardId); updateStratUI(); updatePlayersPanel();
+      return;
+    }
+    p.thirdOnce = true;
+    log(`${p.name} memakai Tiga Dadu — lemparan berikutnya memakai Dadu Ketiga!`, 'important');
+    showToast('🎲 Tiga Dadu aktif untuk 1 lemparan!');
     updatePlayersPanel();
     return;
   }
@@ -6823,11 +6751,11 @@ function applyStratCardCore(cardId, opts) {
 
     switch (cardId) {
       // ---- uang & bank ----
-      case 'b3_money_120': gain(120); return;
-      case 'b3_money_350': gain(350); return;
-      case 'b3_money_700': gain(700); return;
-      case 'b3_money_1200': gain(1200); return;
-      case 'b3_lottery_small': { const a = 20 + Math.floor(Math.random() * 181); gain(a, `Lotre Mini menang Rp${a}!`); return; }
+      
+      
+      
+      
+      
       case 'b3_lottery_big': { const a = 100 + Math.floor(Math.random() * 701); gain(a, `Lotre Besar menang Rp${a}!`); return; }
       case 'b3_dice_gamble': {
         const d = 1 + Math.floor(Math.random() * 6);
@@ -6836,19 +6764,19 @@ function applyStratCardCore(cardId, opts) {
           p.money -= l; moneyAnim(currentPlayer, -l);
           log(`${p.name} Judi Dadu (${d}): kehilangan Rp${l}`, 'rent'); showToast(`🎲 Dadu ${d}: rugi Rp${l}`); updatePlayersPanel();
         } else {
-          const w = d <= 4 ? 100 : 250;
+          const w = d <= 4 ? 150 : 300;
           gain(w, `Judi Dadu (${d}): menang Rp${w}!`); showToast(`🎲 Dadu ${d}: menang Rp${w}!`);
         }
         return;
       }
       case 'b3_catch_up': {
         const poorestMe = players.every((op, i) => i === currentPlayer || op.bankrupt || op.money >= p.money);
-        gain(poorestMe ? 300 : 60);
+        gain(poorestMe ? 300 : 100);
         return;
       }
       // ---- energi & kartu ----
       case 'b3_draw_card': drawStrategyCard(currentPlayer); return;
-      case 'b3_draw_rare': drawFrom(['langka', 'epik', 'legendaris']); return;
+      
       case 'b3_draw_epic': drawFrom(['epik', 'legendaris']); return;
       case 'b3_wheel_energy':
         addEnergy(p, 2); updateStratUI(); updatePlayersPanel();
@@ -6861,11 +6789,7 @@ function applyStratCardCore(cardId, opts) {
         log(`${p.name} menyedot ${total} energi dari lawan`, 'important'); updateStratUI(); updatePlayersPanel(); return;
       }
       // ---- target pemain ----
-      case 'b3_steal_choose_75': {
-        const tg = getTarget(); if (!tg) return;
-        const take = takeFrom(tg.tIdx, 75);
-        log(`${p.name} merampas Rp${take} dari ${tg.t.name} (pilihan)`, 'important'); updatePlayersPanel(); return;
-      }
+      
       case 'b3_skip_player': {
         const tg = getTarget(); if (!tg) return;
         tg.t.skipTurns = (tg.t.skipTurns || 0) + 1;
@@ -6898,17 +6822,17 @@ function applyStratCardCore(cardId, opts) {
         log(`${p.name} mencuri kartu ${cardName(cid)} dari ${tg.t.name}!`, 'important'); updateStratUI(); updatePlayersPanel(); return;
       }
       // ---- bonus MULAI ----
-      case 'b3_go_75': p.nextGoBonus = (p.nextGoBonus || 0) + 75; log(`${p.name}: MULAI berikutnya +Rp75`); return;
-      case 'b3_go_150': p.nextGoBonus = (p.nextGoBonus || 0) + 150; log(`${p.name}: MULAI berikutnya +Rp150`); return;
+      
+      
       case 'b3_go_300': addGoBoost(p,300,3); return;
       // ---- parkir ----
       case 'b3_park_3q': {
         if (freeParkingPot <= 0) { refund('Parkir kosong'); return; }
-        const pot = Math.floor(freeParkingPot * 3 / 4);
-        freeParkingPot -= pot; gain(pot, `ambil ¾ Parkir Rp${pot}`); updateFreeParkingDisplay(); return;
+        const pot = Math.floor(freeParkingPot);
+        freeParkingPot -= pot; gain(pot, `ambil semua uang Parkir Rp${pot}`); updateFreeParkingDisplay(); return;
       }
       // ---- dari semua pemain ----
-      case 'b3_from_all_20': collectFromAll(20); return;
+      
       case 'b5_rent_all': {
         let t = 0, n = 0;
         foes().forEach(({ op, i }) => {
@@ -6916,21 +6840,17 @@ function applyStratCardCore(cardId, opts) {
           if (!ep.length) return;
           const id = ep[Math.floor(Math.random() * ep.length)];
           const baseR = (SPACES[id].rent || 10);
-          const g = Math.min(baseR * 3, op.money);
+          const g = Math.min(baseR * 5, op.money);
           op.money -= g; t += g; n++; moneyAnim(i, -g);
-          log(`${p.name} Tarik Sewa Semua: ${SPACES[id].name} milik ${op.name} — sewa dasar Rp${baseR} ×3 = Rp${baseR * 3}` + (g < baseR * 3 ? ` (hanya dapat Rp${g}, uang lawan kurang)` : ` (terima Rp${g})`), 'money');
+          log(`${p.name} Tarik Sewa Semua: ${SPACES[id].name} milik ${op.name} — sewa dasar Rp${baseR} ×5 = Rp${baseR * 5}` + (g < baseR * 5 ? ` (hanya dapat Rp${g}, uang lawan kurang)` : ` (terima Rp${g})`), 'money');
         });
         if (!n) { refund('Tidak ada target'); return; }
         p.money += t; moneyAnim(currentPlayer, t);
-        log(`${p.name} terima total Rp${t} (3× sewa dasar) dari ${n} lawan`, 'money'); updatePlayersPanel(); return;
+        log(`${p.name} terima total Rp${t} (5× sewa dasar) dari ${n} lawan`, 'money'); updatePlayersPanel(); return;
       }
-      case 'b3_from_all_150': collectFromAll(150); return;
+      
       // ---- rampas ----
-      case 'b3_steal_poorest_60': {
-        const poor = poorest(); if (!poor) { refund('Tidak ada target'); return; }
-        const take = takeFrom(poor.i, 60);
-        log(`${p.name} ambil Rp${take} dari ${poor.op.name}`, 'important'); updatePlayersPanel(); return;
-      }
+      
       case 'b3_steal_all_10pct': collectPct(0.10, 100); return;
       case 'b3_steal_all_20pct': collectPct(0.20, 200); return;
       // ---- rumah ----
@@ -6971,13 +6891,7 @@ function applyStratCardCore(cardId, opts) {
         log(`${p.name} mengguncang ${players[pick.i].name}: ${rem} rumah hancur!`, 'important'); updateOwnerBars(); return;
       }
       // ---- gadai ----
-      case 'b3_free_unmort': {
-        const cands = p.props.filter(id => mortgaged[id]);
-        if (!cands.length) { refund('Tidak ada tanah digadai'); return; }
-        cands.sort((a, b) => (SPACES[b].price || 0) - (SPACES[a].price || 0));
-        const id = cands[0]; delete mortgaged[id];
-        log(`${p.name} menebus ${SPACES[id].name} gratis!`, 'money'); updatePlayersPanel(); updateOwnerBars(); return;
-      }
+      
       case 'b3_unmort_all': {
         const cands = p.props.filter(id => mortgaged[id]);
         if (!cands.length) { refund('Tidak ada tanah digadai'); return; }
@@ -6991,32 +6905,9 @@ function applyStratCardCore(cardId, opts) {
         if (spent) moneyAnim(currentPlayer, -spent);
         log(`${p.name} menebus ${n} tanah (Rp${spent})`, 'money'); updatePlayersPanel(); updateOwnerBars(); return;
       }
-      case 'b3_force_mortgage_2': {
-        const cands = [];
-        foes().forEach(({ op, i }) => op.props.forEach(id => {
-          if (mortgaged[id] || (houses[id] || 0) > 0) return;
-          const sp = SPACES[id]; if (!sp || !sp.price) return;
-          if (sp.group && SPACES.filter(s => s.group === sp.group).some(s => (houses[s.id] || 0) > 0)) return;
-          cands.push({ id, i, sp });
-        }));
-        if (!cands.length) { refund('Tidak ada properti yang bisa digadai'); return; }
-        cands.sort(() => Math.random() - 0.5);
-        cands.slice(0, 2).forEach(c => {
-          const value = Math.floor(c.sp.price / 2);
-          players[c.i].money += value; moneyAnim(c.i, value);
-          mortgaged[c.id] = true;
-          log(`${p.name} paksa gadai ${c.sp.name} milik ${players[c.i].name} (+Rp${value})`, 'important');
-        });
-        updatePlayersPanel(); updateOwnerBars(); return;
-      }
+      
       // ---- saham ----
-      case 'b3_div_double':
-      case 'b3_div_triple': {
-        const mult = cardId === 'b3_div_triple' ? 3 : 2;
-        const div = dividendNow() * mult;
-        if (div <= 0) { refund('Tidak punya saham'); return; }
-        gain(div, `dividen ×${mult} = Rp${div}`); return;
-      }
+      
       // ---- penjara & skip ----
       case 'b3_jail_richest': {
         const r = richest(); if (!r) { refund('Tidak ada target'); return; }
@@ -7024,8 +6915,8 @@ function applyStratCardCore(cardId, opts) {
         updateTokens(); log(`${p.name} memenjarakan ${r.op.name} (terkaya)!`, 'important'); updatePlayersPanel(); return;
       }
       // ---- gerak (Tingkat Luar) ----
-      case 'b3_forward8': if (!outerOnly()) return; moveN(8); return;
-      case 'b3_random_2_6': if (!outerOnly()) return; moveN(2 + Math.floor(Math.random() * 5)); return;
+      
+      
       case 'b3_nearest_rail': {
         if (!outerOnly()) return;
         for (let s = 1; s < BOARD_LEN; s++) { if (SPACES[(p.pos + s) % BOARD_LEN].type === 'rail') { moveN(s); return; } }
@@ -7051,23 +6942,15 @@ function applyStratCardCore(cardId, opts) {
         log(`${p.name} memungut ${cardId === 'b5_rich_tax_epik' ? 'Pajak Konglomerat' : 'Pajak Orang Kaya'} Rp${t}`, 'money'); updatePlayersPanel(); return;
       }
       // ===== BATCH 4 =====
-      case 'b4_money_45': gain(45); return;
-      case 'b4_money_150': gain(150); return;
-      case 'b4_money_850': gain(850); return;
-      case 'b4_energy_hand': {
-        const n = Math.min((p.hand || []).length, 4);
-        if (n <= 0) { refund('Tanganmu kosong'); return; }
-        addEnergy(p, n); log(`${p.name}: +${n} energi (dari kartu di tangan)`); updateStratUI(); updatePlayersPanel(); return;
-      }
-      case 'b4_energy_20': {
-        p.energy = STRAT_ENERGY_MAX;
-        log(`${p.name}: energi menjadi ${p.energy}`, 'important'); updateStratUI(); updatePlayersPanel(); return;
-      }
-      case 'b4_from_all_12': collectFromAll(12); return;
-      case 'b4_from_all_45': collectFromAll(45); return;
+      
+      
+      
+      
+      
+      
+      
       case 'b4_steal_choose_40':
-      case 'b4_steal_choose_120':
-      case 'b4_steal_choose_450': {
+      {
         const tg = getTarget(); if (!tg) return;
         const amt = parseInt(cardId.split('_').pop(), 10);
         const take = takeFrom(tg.tIdx, amt);
@@ -7075,23 +6958,16 @@ function applyStratCardCore(cardId, opts) {
       }
       case 'b4_steal_choose_10pct':
       case 'b4_steal_choose_20pct':
-      case 'b4_steal_choose_45pct': {
+      {
         const tg = getTarget(); if (!tg) return;
-        const cfg = { b4_steal_choose_10pct: [0.10, 100], b4_steal_choose_20pct: [0.20, 200], b4_steal_choose_45pct: [0.45, 450] }[cardId];
+        const cfg = { b4_steal_choose_10pct: [0.10, 100], b4_steal_choose_20pct: [0.20, 200] }[cardId];
         const take = takeFrom(tg.tIdx, Math.min(Math.floor(tg.t.money * cfg[0]), cfg[1]));
         log(`${p.name} merampas Rp${take} (${Math.round(cfg[0] * 100)}%) dari ${tg.t.name}`, 'important'); updatePlayersPanel(); return;
       }
-      case 'b4_steal_rand_45': {
-        const f = foes(); if (!f.length) { refund('Tidak ada target'); return; }
-        const v = pickRand(f); const take = takeFrom(v.i, 45);
-        log(`${p.name} mencopet Rp${take} dari ${v.op.name}`, 'important'); updatePlayersPanel(); return;
-      }
-      case 'b4_go_40': case 'b4_go_200': case 'b4_go_500': {
-        const amt = parseInt(cardId.split('_').pop(), 10);
-        p.nextGoBonus = (p.nextGoBonus || 0) + amt; log(`${p.name}: MULAI berikutnya +Rp${amt}`); return;
-      }
-      case 'b4_back_rand4': if (!outerOnly()) return; moveN(-(1 + Math.floor(Math.random() * 4))); return;
-      case 'b4_forward9': if (!outerOnly()) return; moveN(9); return;
+      
+      
+      
+      
       case 'b4_props_bonus': {
         const n = (p.props || []).length + (p.propsInner || []).length; if (!n) { refund('Kamu belum punya properti'); return; }
         gain(n * 10, `bonus aset ${n} properti × Rp10 = +Rp${n * 10}`); return;
@@ -7117,29 +6993,19 @@ function applyStratCardCore(cardId, opts) {
       }
       case 'b4_lottery_flash': { const a = 10 + Math.floor(Math.random() * 111); gain(a, `Lotre Kilat menang Rp${a}!`); return; }
       case 'b4_interest': {
-        const a = Math.min(Math.floor(p.money * 0.10), 250);
-        if (a <= 0) { refund('Uang tidak cukup'); return; }
+        const a = Math.min(Math.max(Math.floor(p.money * 0.15), 100), 300);
+        if (p.money <= 0) { refund('Uang tidak cukup'); return; }
         gain(a, `bunga deposito Rp${a}`); return;
       }
       case 'b4_park_fifth': {
         if (freeParkingPot <= 0) { refund('Parkir kosong'); return; }
-        const pot = Math.max(1, Math.floor(freeParkingPot / 2));
-        freeParkingPot -= pot; gain(pot, `ambil ½ Parkir Rp${pot}`); updateFreeParkingDisplay(); return;
+        const pot = Math.max(1, Math.floor(freeParkingPot * 3 / 4));
+        freeParkingPot -= pot; gain(pot, `ambil ¾ Parkir Rp${pot}`); updateFreeParkingDisplay(); return;
       }
-      case 'b4_money_to_energy': {
-        if (p.money < 50) { refund('Uang tidak cukup (butuh Rp50)'); return; }
-        p.money -= 50; moneyAnim(currentPlayer, -50); addEnergy(p, 3);
-        log(`${p.name}: bayar Rp50, +3 energi`); updateStratUI(); updatePlayersPanel(); return;
-      }
+      
       case 'b4_energy_to_money': {
         if ((p.energy || 0) < 3) { refund('Energi tidak cukup (butuh 3)'); return; }
         p.energy -= 3; updateStratUI(); gain(120, 'jual 3 energi → Rp120'); return;
-      }
-      case 'b4_steal_energy_1': {
-        const tg = getTarget(); if (!tg) return;
-        if ((tg.t.energy || 0) <= 0) { refund('Target tidak punya energi'); return; }
-        tg.t.energy = Math.max(0, (tg.t.energy || 0) - 1); addEnergy(p, 1);
-        log(`${p.name} mencuri 1 energi dari ${tg.t.name}`, 'important'); updateStratUI(); updatePlayersPanel(); return;
       }
       case 'b4_swap_energy': {
         const tg = getTarget(); if (!tg) return;
@@ -7147,11 +7013,7 @@ function applyStratCardCore(cardId, opts) {
         p.energy = Math.min(STRAT_ENERGY_MAX, theirs); tg.t.energy = Math.min(STRAT_ENERGY_MAX, mine);
         log(`${p.name} menukar energi dengan ${tg.t.name} (⚡${mine} ⇄ ⚡${theirs})`, 'important'); updateStratUI(); updatePlayersPanel(); return;
       }
-      case 'b4_skip_player_2': {
-        const tg = getTarget(); if (!tg) return;
-        tg.t.skipTurns = (tg.t.skipTurns || 0) + 2;
-        log(`${p.name} membekukan ${tg.t.name}: skip 2 giliran!`, 'important'); updatePlayersPanel(); return;
-      }
+      
       case 'b4_prev_rail': {
         if (!outerOnly()) return;
         for (let s = 1; s < BOARD_LEN; s++) { if (SPACES[(p.pos - s + BOARD_LEN) % BOARD_LEN].type === 'rail') { moveN(-s); return; } }
@@ -7168,14 +7030,14 @@ function applyStratCardCore(cardId, opts) {
       case 'b4_harvest_god': {
         const n = (p.props || []).length + (p.propsInner || []).length;
         if (!n) { refund('Kamu belum punya properti'); return; }
-        gain(n * 50, `panen raya ${n} properti × Rp50 = +Rp${n * 50}`); return;
+        gain(n * 100, `panen raya ${n} properti × Rp100 = +Rp${n * 100}`); return;
       }
       case 'b4_prop_tax_small':
       case 'b4_prop_tax':
       case 'b4_prop_tax_big':
       case 'b4_prop_tax_god': {
         // Lawan membayar per properti KEPADA pemakai kartu, dengan batas maksimal per lawan.
-        const cfg = { b4_prop_tax_small: [10, 100], b4_prop_tax: [20, 200], b4_prop_tax_big: [35, 300], b4_prop_tax_god: [50, 400] }[cardId];
+        const cfg = { b4_prop_tax_small: [10, 100], b4_prop_tax: [20, 200], b4_prop_tax_big: [35, 300], b4_prop_tax_god: [50, 500] }[cardId];
         const per = cfg[0], cap = cfg[1];
         let t = 0;
         foes().forEach(({ op, i }) => {
@@ -7185,7 +7047,7 @@ function applyStratCardCore(cardId, opts) {
         });
         if (t <= 0) { refund('Lawan belum punya properti'); return; }
         moneyAnim(currentPlayer, t);
-        log(`${p.name} memakai ${(STRATEGY_CARDS.find(c => c.id === cardId) || {}).name || 'Pajak Aset'} — total diterima Rp${t} dari lawan (maks. Rp${cap} per lawan)`, 'important'); updatePlayersPanel(); return;
+        log(`${p.name} memakai ${(STRATEGY_CARDS.find(c => c.id === cardId) || {}).name || 'Pajak Aset'} — total diterima Rp${t} dari lawan` + (isFinite(cap) ? ` (maks. Rp${cap} per lawan)` : ' (tanpa batas)'), 'important'); updatePlayersPanel(); return;
       }
       case 'b4_jail_poorest':
       case 'b4_jail_two_richest': {
@@ -7208,27 +7070,10 @@ function applyStratCardCore(cardId, opts) {
         p.money -= cost; if (cost) moneyAnim(currentPlayer, -cost); delete mortgaged[id];
         log(`${p.name} menebus ${SPACES[id].name} (diskon 50%, Rp${cost})`, 'money'); updatePlayersPanel(); updateOwnerBars(); return;
       }
-      case 'b4_wheel_money':
-        gain(100, '+Rp100 lalu putar Roda!'); spinFortuneWheel(); return;
+      
       case 'b4_draw_rare_only': drawFrom(['langka','epik','legendaris']); return;
-      case 'b4_grab_cards': {
-        let got = 0;
-        const grabOrder = foes().sort(() => Math.random() - 0.5);
-        grabOrder.forEach(({ op }) => {
-          if (isHandFull(p)) return;
-          const h = op.hand || []; if (!h.length) return;
-          const cid = h.splice(Math.floor(Math.random() * h.length), 1)[0];
-          if (cid === 'avoid_bankrupt') { op.hasAvoidCard = false; p.hasAvoidCard = true; }
-          p.hand.push(cid); got++;
-          log(`${p.name} merampok kartu ${cardName(cid)} dari ${op.name}!`, 'important');
-        });
-        if (!got) { refund('Tidak ada kartu yang bisa dirampok (atau tanganmu penuh)'); return; }
-        showToast(`🖐️ Berhasil merampok ${got} kartu!`);
-        updateStratUI(); updatePlayersPanel(); return;
-      }
-      case 'b4_skip_all_2':
-        foes().forEach(({ op }) => { op.skipTurns = (op.skipTurns || 0) + 2; });
-        log(`${p.name}: mogok total — semua lawan skip 2 giliran!`, 'important'); updatePlayersPanel(); return;
+      
+      
     }
     return;
   }
@@ -8501,11 +8346,10 @@ window.sellHouse = sellHouse;
   }
 
   // ---------- pengelolaan aset ----------
-  const SAFE_CARDS = new Set(['money_30','money_200','money_400','money_1000','b3_from_all_150',
+  const SAFE_CARDS = new Set(['money_30','money_200','money_400','money_1000',
     'steal_20','steal_50','steal_200','steal_500','steal_from_poorest','steal_random_25','steal_half_richest','steal_richest_20pct',
     'b3_lottery_big','b4_lottery_flash','b3_catch_up','b4_interest','b4_props_bonus','b4_rail_bonus','b3_steal_all_10pct','b3_steal_all_20pct',
-    'b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','stock_div_half','b3_div_double','b3_div_triple','b3_park_3q','b4_park_fifth','b3_rich_tax','b5_rich_tax_epik']);
-  const ENERGY_CARDS = new Set(['energy_1','energy_3','energy_5']);
+    'b4_prop_tax_small','b4_prop_tax','b4_prop_tax_big','b4_props_gain_20','b4_props_gain_35','b4_prop_tax_god','b4_harvest_god','b3_park_3q','b4_park_fifth','b3_rich_tax','b5_rich_tax_epik']);
 
   function botManage(p, allowCards, atEnd) {
     if (manage.n >= 14) return false;
@@ -8513,7 +8357,7 @@ window.sellHouse = sellHouse;
     if (allowCards && strategiEnabled && !hasRolledThisTurn) {
       for (let i = 0; i < (p.hand || []).length; i++) {
         const id = p.hand[i];
-        const ok = SAFE_CARDS.has(id) || (ENERGY_CARDS.has(id) && (p.energy || 0) <= 6);
+        const ok = SAFE_CARDS.has(id);
         if (ok && (p.energy || 0) >= stratCost(id)) { manage.n++; tryUseStratCard(i); return true; }
       }
     }
@@ -8522,7 +8366,7 @@ window.sellHouse = sellHouse;
       manage.tried = manage.tried || {};
       for (let i = 0; i < (p.hand || []).length; i++) {
         const id = p.hand[i];
-        if (SAFE_CARDS.has(id) || ENERGY_CARDS.has(id) || manage.tried[id] || (p.energy || 0) < stratCost(id)) continue;
+        if (SAFE_CARDS.has(id) || manage.tried[id] || (p.energy || 0) < stratCost(id)) continue;
         const plan = cardPlan(id, p);
         if (!plan) continue;
         manage.tried[id] = 1; manage.n++; botPlan = plan; botTarget = plan.player !== undefined ? plan.player : -1;
@@ -8609,7 +8453,7 @@ window.sellHouse = sellHouse;
     if (isMulti()) add(INNER_SPACES, ownedInner, housesInner, mortgagedInner, true);
     return out;
   }
-  const ALWAYS = new Set(['wheel', 'b3_wheel_energy', 'b3_draw_card', 'b3_draw_epic', 'b4_draw_rare_only', 'b3_dice_gamble', 'b4_coin_flip', 'pay_tax_half', 'pay_tax_zero', 'go_bonus_25', 'double_go_small', 'b3_go_300', 'rent_to_me', 'b5_rent_all', 'jail_random']);
+  const ALWAYS = new Set(['wheel', 'b3_wheel_energy', 'b3_draw_card', 'b3_draw_epic', 'b4_draw_rare_only', 'b3_dice_gamble', 'third_die_once', 'b4_coin_flip', 'go_bonus_25', 'double_go_small', 'b3_go_300', 'rent_to_me', 'b5_rent_all', 'jail_random']);
   const MOVE = { forward1: 1, back1: -1, forward5: 3, back5: -3 };
   function instantOk(id, p) {
     const opp = players.filter((q, i) => i !== currentPlayer && !q.bankrupt);
@@ -8629,8 +8473,7 @@ window.sellHouse = sellHouse;
     if (id === 'random_back') return outer && avg([-1, -2, -3].map(dest)) >= 30;
     if (id === 'random_forward_2') return outer && avg([1, 2].map(dest)) >= 30;
     if (id === 'teleport_random') return outer && p.money > 500 && avg(SPACES.map((_, i) => tileScore(i, p))) >= 15;
-    if (id === 'teleport_rail_any') return outer && avg(RAIL_IDS.map(i => tileScore(i, p))) >= 30;
-    if (id === 'teleport_rail') return outer && danger < -50 && RAIL_IDS.some(i => owned[i] === currentPlayer && !mortgaged[i]);
+    if (id === 'teleport_rail') return outer && (RAIL_IDS.some(i => owned[i] === currentPlayer && !mortgaged[i]) ? danger < -50 : avg(RAIL_IDS.map(i => tileScore(i, p))) >= 30);
     if (id === 'parking_self') return freeParkingPot >= 200 || (outer && danger < -60);
     switch (id) {
       case 'immunity': return oppH >= 2;
@@ -8645,8 +8488,8 @@ window.sellHouse = sellHouse;
       case 'b4_jail_poorest': return leading;
       case 'b3_jail_richest': case 'b4_jail_two_richest': return !richest;
       case 'b3_drain_energy': return opp.some(q => (q.energy || 0) >= 2);
-      case 'b4_energy_hand': return hand >= 2;
-      case 'b4_money_to_energy': return p.money > 800;
+      
+      
       case 'b4_energy_to_money': return (p.energy || 0) >= 6 && p.money < 400;
       case 'steal_all_stocks': case 'stock_steal_1': return opp.some(hasStock);
       case 'start_self': return p.level !== 'inner' && p.pos >= 28;
@@ -9620,8 +9463,6 @@ window.sellHouse = sellHouse;
     if (m.dyn) {
       const keep = new Set(m.dyn);
       Object.keys(dynMap).forEach((k) => { if (!keep.has(k)) { try { dynMap[k].remove(); } catch (e) {} delete dynMap[k]; } });
-      // dinamis ber-id (mis. overlay variasi dadu) yang sudah hilang di host
-      document.querySelectorAll('body > [id]').forEach((e) => { /* hanya yang kita buat sendiri via dynMap dihapus */ });
     }
     if (m.m) {
       const prevSt = !!(OL.gmeta && OL.gmeta.st);
@@ -10040,10 +9881,9 @@ window.sellHouse = sellHouse;
   var b=document.getElementById('mainMenuBtn'); if(!b) return;
   b.addEventListener('click',function(){
     var online=(typeof isOnlineRoomActive==='function')&&isOnlineRoomActive();
-    var msg=online?'Kembali ke menu utama? Anda akan keluar dari room online.':'Kembali ke menu utama? Permainan tersimpan otomatis (dari awal giliran saat ini) dan bisa dilanjutkan dari menu.';
+    var msg=online?'Kembali ke menu utama? Anda akan keluar dari room online.':'Kembali ke menu utama? Permainan tersimpan otomatis (dari awal giliran saat ini, kartu yang didapat tetap sama) dan bisa dilanjutkan dari menu.';
     if(!confirm(msg)) return;
-    // Tidak menyimpan ulang di sini: simpanan otomatis dibuat di AWAL giliran (sebelum +energi/+kartu dihitung).
-    // Menyimpan di tengah giliran membuat bonus giliran terhitung dua kali saat dimuat (kartu muncul di giliran pertama).
+    // Tidak menyimpan ulang di sini: simpanan otomatis dibuat di awal giliran, SETELAH +energi/+kartu diundi, dan kartunya ikut tersimpan.
     location.reload();
   });
 })();
@@ -10140,5 +9980,224 @@ window.sellHouse = sellHouse;
   });
 })();
 </script>
+<!-- ===== Info Tanah: klik 2 kali / ketuk 2 kali pada petak tanah ===== -->
+<style>
+  #board .space.has-info { cursor: pointer; }
+  #board .space { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  .landinfo .li-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .landinfo .li-strip { width:10px; align-self:stretch; border-radius:6px; flex:none; }
+  .landinfo .li-title { font-weight:700; font-size:1.05rem; color:var(--text); line-height:1.2; }
+  .landinfo .li-sub { font-size:0.74rem; color:var(--muted); margin-top:2px; }
+  .landinfo .li-rows { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+  .landinfo .li-row { display:flex; justify-content:space-between; gap:12px; font-size:0.85rem; padding:6px 10px; border-radius:10px; background:rgba(255,255,255,0.05); }
+  .landinfo .li-row span:first-child { color:var(--muted); }
+  .landinfo .li-row span:last-child { font-weight:650; text-align:right; }
+  .landinfo .li-sec { font-size:0.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:10px 0 6px; }
+  .landinfo .li-tbl { display:flex; flex-direction:column; gap:3px; margin-bottom:12px; }
+  .landinfo .li-tbl .li-row { padding:4px 10px; font-size:0.8rem; }
+  .landinfo .li-tbl .li-row.cur { background:rgba(56,189,248,0.22); outline:1px solid var(--accent); }
+  .landinfo .li-tag { display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.72rem; font-weight:650; background:rgba(239,68,68,0.18); color:#fca5a5; }
+</style>
+<script>
+(function () {
+  'use strict';
+  const GROUP_LABEL = {
+    brown: 'Coklat', lightblue: 'Biru Muda', pink: 'Pink', orange: 'Oranye',
+    red: 'Merah', yellow: 'Kuning', green: 'Hijau', darkblue: 'Biru Tua', lelangEmas: 'Emas (Khusus Lelang)',
+    dalamA: 'Teal (Dalam)', dalamB: 'Pink (Dalam)', dalamC: 'Ungu (Dalam)', dalamD: 'Oranye (Dalam)',
+    tgA: 'Cyan (Tengah)', tgB: 'Lime (Tengah)', tgC: 'Merah (Tengah)', tgD: 'Emas (Tengah)',
+    tgE: 'Ungu (Tengah)', tgF: 'Tosca (Tengah)', tgG: 'Rose (Tengah)', tgH: 'Biru (Tengah)'
+  };
+  const G96 = ['Coklat','Biru Muda','Pink','Oranye','Merah','Kuning','Hijau','Biru Tua','Tosca','Ungu','Lime','Rose','Cyan','Magenta','Amber','Zamrud','Indigo','Salmon','Teal'];
+    const INNER_MULT = [4, 10, 20, 30, 40];   // sama dengan getInnerRent
+
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const rp = (n) => 'Rp' + n;
+
+  function groupLabel(g) {
+    if (!g) return '';
+    if (GROUP_LABEL[g]) return GROUP_LABEL[g];
+    const m = /^g96_(\d+)$/.exec(g);
+    if (m && G96[+m[1]]) return G96[+m[1]];
+    return g;
+  }
+
+  function ensureModal() {
+    let ov = document.getElementById('landInfoModal');
+    if (ov) return ov;
+    ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.id = 'landInfoModal';
+    ov.innerHTML = '<div class="modal landinfo"><div id="landInfoBody"></div><div class="btns"><button class="btn-secondary" id="landInfoClose" type="button">Tutup</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('#landInfoClose').addEventListener('click', close);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    return ov;
+  }
+  function close() { const ov = document.getElementById('landInfoModal'); if (ov) ov.classList.remove('show'); }
+
+  function row(a, b) { return '<div class="li-row"><span>' + a + '</span><span>' + b + '</span></div>'; }
+
+  function ownerLabel(idx) {
+    const p = players[idx];
+    if (!p) return 'Belum ada pemilik';
+    return '<span style="color:' + esc(p.color) + '">' + esc(p.avatar || '') + ' ' + esc(p.name) + '</span>';
+  }
+
+  // Hitung sewa saat ini tanpa efek samping (getRent bisa menghabiskan flag sewa ×2 milik pemilik)
+  function safeOuterRent(sp, id) {
+    const ow = owned[id], pl = players[ow];
+    const saved = pl ? pl.nextRentDouble : undefined;
+    let r = 0;
+    try { r = getRent(sp, id); } finally { if (pl) pl.nextRentDouble = saved; }
+    return r;
+  }
+
+  function effectLabel(eff) {
+    if (!eff) return '';
+    const pct = (m) => Math.round(Math.abs(m - 1) * 100);
+    if (eff.type === 'trap') return '🪤 Jebakan (korban skip ' + (eff.skipTurns || 1) + ' giliran)';
+    if (eff.type === 'olympics') return '🏅 Olimpiade (sewa +' + pct(eff.rentMult != null ? eff.rentMult : 1.5) + '%)';
+    if (eff.type === 'discount') return '🏷️ Diskon (sewa −' + pct(eff.rentMult != null ? eff.rentMult : 0.5) + '%)';
+    return esc(eff.type);
+  }
+
+  function showInfo(level, id) {
+    let sp = level === 'inner' ? INNER_SPACES[id] : SPACES[id];
+    if (!sp) return;
+    // Stasiun penghubung Tingkat Dalam → tampilkan stasiun Tingkat Luar yang sama
+    if (level === 'inner' && sp.isInnerStation) {
+      if (sp.linkOuter == null || !SPACES[sp.linkOuter]) return;
+      level = 'outer'; id = sp.linkOuter; sp = SPACES[id];
+    }
+    if (sp.type !== 'property' && sp.type !== 'rail' && sp.type !== 'util') return;
+
+    const inner = level === 'inner';
+    const ownedMap = inner ? ownedInner : owned;
+    const mortMap = inner ? mortgagedInner : mortgaged;
+    const houseMap = inner ? housesInner : houses;
+    const key = inner ? landKey('inner', id) : id;
+    const ownerIdx = ownedMap[id];
+    const isOwned = ownerIdx !== undefined && players[ownerIdx];
+    const isMort = !!mortMap[id];
+    const h = houseMap[id] || 0;
+
+    let tierTxt = '';
+    if (isMulti()) tierTxt = !inner ? 'Tingkat Luar' : (currentMapId === 'tri' && id < TRI_MID_LEN ? 'Tingkat Tengah' : 'Tingkat Dalam');
+    const kind = sp.type === 'rail' ? 'Stasiun' : sp.type === 'util' ? 'Utilitas' : 'Tanah';
+    const grp = groupLabel(sp.group);
+    const sub = [kind, grp ? 'Grup ' + grp : '', tierTxt].filter(Boolean).join(' · ');
+
+    // Harga & gadai
+    const paid = (!inner && sp.auctionOnly && auctionPaid[id] !== undefined) ? auctionPaid[id] : null;
+    const basePrice = paid != null ? paid : (sp.price || 0);
+    let rows = '';
+    if (sp.auctionOnly && paid == null) rows += row('Harga', 'Hanya lewat lelang');
+    else rows += row(paid != null ? 'Harga lelang' : 'Harga beli', rp(basePrice));
+    rows += row('Pemilik', isOwned ? ownerLabel(ownerIdx) : 'Belum ada pemilik');
+    if (isMort) rows += row('Status', '<span class="li-tag">Digadai</span>');
+    if (sp.type === 'property') {
+      rows += row('Bangunan', h === 0 ? 'Tidak ada' : (h === 5 ? '🏨 Hotel' : '🏠 ' + h + ' rumah'));
+      const hc = inner ? getInnerHouseCost(id) : getHouseCost(id);
+      rows += row('Biaya bangun / rumah', rp(hc));
+    }
+    if (sp.type === 'property' || sp.type === 'rail' || sp.type === 'util') {
+      if (basePrice > 0) {
+        rows += row('Nilai gadai', rp(Math.floor(basePrice / 2)));
+        rows += row('Biaya tebus', rp(Math.floor(basePrice / 2 * 1.1)));
+      }
+    }
+    const eff = landEffects[key];
+    if (eff) rows += row('Efek aktif', effectLabel(eff));
+
+    // Sewa
+    let rentRows = '';
+    if (sp.type === 'property') {
+      const mult = inner ? INNER_MULT : outerRentMults(sp);
+      const base = sp.rent || 0;
+      const labels = ['Sewa dasar', '1 rumah', '2 rumah', '3 rumah', '4 rumah', 'Hotel'];
+      const vals = [base].concat(mult.map((m) => base * m));
+      rentRows += '<div class="li-sec">Tabel sewa</div><div class="li-tbl">';
+      vals.forEach((v, i) => { rentRows += '<div class="li-row' + (isOwned && h === i ? ' cur' : '') + '"><span>' + labels[i] + '</span><span>' + rp(v) + '</span></div>'; });
+      rentRows += '</div>';
+      rentRows += '<div class="li-tbl">' + row('Satu set warna lengkap (tanpa bangunan)', rp(base * 2)) + '</div>';
+    } else if (sp.type === 'rail') {
+      const n = RAIL_IDS.length;
+      rentRows += '<div class="li-sec">Sewa stasiun (sesuai jumlah dimiliki)</div><div class="li-tbl">';
+      for (let c = 1; c <= n; c++) {
+        const v = n > 4 ? [0, 25, 50, 100, 200, 300, 400, 550, 700][c] : 25 * Math.pow(2, c - 1);
+        rentRows += row(c + ' stasiun', rp(v));
+      }
+      rentRows += '</div>';
+    } else if (sp.type === 'util') {
+      rentRows += '<div class="li-sec">Sewa utilitas</div><div class="li-tbl">';
+      if (inner) {
+        rentRows += row('Punya 1', 'Dadu × 4') + row('Punya 2 (satu tingkat)', 'Dadu × 8');
+      } else {
+        rentRows += row('Punya 1', 'Dadu × 4') + row('Punya 2', 'Dadu × 10') + row('Punya 3', 'Dadu × 15') + row('Punya 4+', 'Dadu × 20');
+      }
+      rentRows += '</div>';
+    }
+
+    // Sewa saat ini
+    let curRent = '';
+    if (isOwned) {
+      if (isMort) curRent = row('Sewa saat ini', 'Rp0 (digadai)');
+      else if (sp.type === 'util') curRent = row('Sewa saat ini', 'Tergantung lemparan dadu');
+      else {
+        let r = 0;
+        try { r = inner ? getInnerRent(sp, id) : safeOuterRent(sp, id); } catch (e) { r = null; }
+        if (r != null) curRent = row('Sewa saat ini', '<span style="color:#ef4444">' + rp(r) + '</span>');
+      }
+    }
+
+    const strip = sp.color || '#64748b';
+    const html =
+      '<div class="li-head"><div class="li-strip" style="background:' + esc(strip) + '"></div>' +
+      '<div><div class="li-title">' + esc(sp.name) + '</div><div class="li-sub">' + esc(sub) + '</div></div></div>' +
+      '<div class="li-rows">' + rows + curRent + '</div>' + rentRows;
+
+    ensureModal().querySelector('#landInfoBody').innerHTML = html;
+    document.getElementById('landInfoModal').classList.add('show');
+  }
+
+  // ----- Deteksi klik 2 kali (mouse) / ketuk 2 kali (layar sentuh) pada petak -----
+  let lastKey = null, lastTime = 0;
+  const WINDOW_MS = 400;
+
+  function parseSpace(el) {
+    const m = /^space-(in-)?(\d+)$/.exec(el.id || '');
+    if (!m) return null;
+    return { level: m[1] ? 'inner' : 'outer', id: parseInt(m[2], 10) };
+  }
+
+  function bind() {
+    const board = document.getElementById('board');
+    if (!board || board.dataset.landInfoBound) return;
+    board.dataset.landInfoBound = '1';
+    board.addEventListener('click', (e) => {
+      const el = e.target.closest && e.target.closest('.space');
+      if (!el || !board.contains(el)) return;
+      // Jangan ganggu mode pilih petak untuk kartu strategi
+      if (board.classList.contains('pick-mode')) { lastKey = null; return; }
+      const ref = parseSpace(el);
+      if (!ref) return;
+      const k = ref.level + ':' + ref.id;
+      const now = Date.now();
+      if (k === lastKey && now - lastTime <= WINDOW_MS) {
+        lastKey = null; lastTime = 0;
+        showInfo(ref.level, ref.id);
+      } else {
+        lastKey = k; lastTime = now;
+      }
+    });
+    // Cegah teks terseleksi / zoom saat klik ganda
+    board.addEventListener('dblclick', (e) => { if (e.target.closest && e.target.closest('.space')) e.preventDefault(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+})();
+</script>
+
 </body>
 </html>
